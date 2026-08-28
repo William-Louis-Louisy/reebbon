@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design System — Liseuse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..900&family=Public+Sans:wght@400;500;600;700&family=Literata:opsz,wght@7..72,400;7..72,500;7..72,600;7..72,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#35304C; --ink-2:#4A4368;
+    --oxblood:#7A3030; --oxblood-2:#93403F; --oxblood-tint:#D98C7A;
+    --paper:#ECE6D8; --paper-2:#E3DBC8; --paper-text:#2B2620; --paper-text-soft:#5E5646;
+    --walnut:#26211D; --walnut-2:#332C26; --walnut-text:#D8CFB8; --walnut-text-soft:#948A72;
+    --sepia:#F1E2C0; --sepia-2:#E9D6AC; --sepia-text:#4A3826;
+    --night:#1E1B22; --night-2:#2A2530; --night-text:#C9C0AE;
+    --border-light:#DAD1BC; --border-dark:#3A342E;
+
+    --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:48px; --sp-8:64px;
+    --r-sm:8px; --r-md:14px; --r-lg:20px; --r-pill:999px;
+
+    --shadow: 0 10px 28px rgba(53,48,76,.16), 0 2px 6px rgba(53,48,76,.10);
+    --shadow-dark: 0 10px 28px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.3);
+
+    --ease-ui: cubic-bezier(.4,0,.2,1);
+    --ease-page: cubic-bezier(.22,.61,.36,1);
+    --dur-q:120ms; --dur-b:260ms; --dur-s:480ms;
+
+    --f-display:'Fraunces', serif;
+    --f-ui:'Public Sans', sans-serif;
+    --f-reading:'Literata', serif;
+    --f-mono:'IBM Plex Mono', monospace;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:var(--f-ui);
+    background:var(--paper);
+    color:var(--paper-text);
+    line-height:1.5;
+    padding-bottom:120px;
+  }
+  ::selection{ background:var(--oxblood); color:var(--paper); }
+
+  .wrap{ max-width:1000px; margin:0 auto; padding:0 var(--sp-5); }
+
+  /* ---------- Eyebrow / colophon label ---------- */
+  .eyebrow{
+    font-family:var(--f-mono);
+    font-weight:500;
+    font-size:11px;
+    line-height:1.2;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--oxblood);
+    display:flex; align-items:center; gap:var(--sp-2);
+    margin-bottom:var(--sp-3);
+  }
+  .eyebrow::before{ content:''; width:14px; height:1px; background:var(--oxblood); display:inline-block; }
+
+  /* ---------- Hero ---------- */
+  .hero{
+    padding: var(--sp-8) 0 var(--sp-7);
+    border-bottom:1px solid var(--border-light);
+    position:relative;
+    overflow:hidden;
+  }
+  .hero-ribbon{
+    position:absolute; top:0; right:64px; width:34px; height:120px;
+    background:linear-gradient(180deg, var(--oxblood), var(--oxblood-2));
+    clip-path:polygon(0 0,100% 0,100% 88%,50% 100%,0 88%);
+    transform-origin:top center;
+    animation:unfurl 900ms var(--ease-page) both;
+  }
+  @keyframes unfurl{
+    from{ transform:scaleY(0); }
+    to{ transform:scaleY(1); }
+  }
+  .hero h1{
+    font-family:var(--f-display);
+    font-weight:600;
+    font-optical-sizing:auto;
+    font-size:clamp(34px, 6vw, 56px);
+    line-height:1.05;
+    letter-spacing:-.01em;
+    max-width:9ch;
+  }
+  .hero p{
+    font-weight:400;
+    font-size:15px;
+    line-height:1.55;
+    letter-spacing:0;
+    color:var(--paper-text-soft);
+    max-width:52ch;
+    margin-top:var(--sp-4);
+  }
+  .hero .principle{
+    font-family:var(--f-reading);
+    font-style:italic;
+    font-weight:400;
+    font-size:18px;
+    line-height:1.5;
+    letter-spacing:0;
+    color:var(--ink);
+    margin-top:var(--sp-5);
+    max-width:46ch;
+  }
+
+  section{ padding:var(--sp-8) 0; border-bottom:1px solid var(--border-light); }
+  section h2{
+    font-family:var(--f-display);
+    font-weight:500;
+    font-size:28px;
+    line-height:1.15;
+    letter-spacing:-.005em;
+    margin-bottom:var(--sp-2);
+  }
+  section > .lede{ color:var(--paper-text-soft); max-width:60ch; margin-bottom:var(--sp-6); font-weight:400; font-size:15px; line-height:1.55; letter-spacing:0; }
+
+  /* ---------- Palette ---------- */
+  .swatch-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:var(--sp-4); }
+  .swatch{ border-radius:var(--r-md); overflow:hidden; border:1px solid var(--border-light); }
+  .swatch-color{ height:84px; }
+  .swatch-meta{ padding:var(--sp-3); background:#fff; font-size:12px; }
+  .swatch-meta b{ display:block; font-size:13px; margin-bottom:2px; }
+  .swatch-meta span{ font-family:var(--f-mono); color:var(--paper-text-soft); }
+  .swatch-meta p{ margin-top:5px; font-size:11px; line-height:1.4; color:var(--paper-text-soft); }
+
+  .theme-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:var(--sp-4); margin-top:var(--sp-5); }
+  .theme-card{ border-radius:var(--r-lg); padding:var(--sp-5); box-shadow:var(--shadow); }
+  .theme-card h3{ font-family:var(--f-mono); font-weight:500; font-size:11px; line-height:1.2; text-transform:uppercase; letter-spacing:.14em; margin-bottom:var(--sp-3); opacity:.7; }
+  .theme-card p{ font-family:var(--f-reading); font-weight:400; font-size:15px; line-height:1.7; letter-spacing:0; }
+  .theme-card.paper{ background:var(--paper); color:var(--paper-text); border:1px solid var(--border-light); }
+  .theme-card.sepia{ background:var(--sepia); color:var(--sepia-text); }
+  .theme-card.night{ background:var(--night); color:var(--night-text); }
+
+  /* ---------- Typography ---------- */
+  .type-row{ display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-4); padding:var(--sp-4) 0; border-bottom:1px dashed var(--border-light); }
+  .type-row:last-child{ border-bottom:none; }
+  .type-sample.display{ font-family:var(--f-display); font-weight:600; font-size:40px; line-height:1.05; letter-spacing:-.01em; }
+  .type-sample.ui-lg{ font-family:var(--f-ui); font-weight:600; font-size:20px; line-height:1.3; letter-spacing:-.005em; }
+  .type-sample.ui{ font-family:var(--f-ui); font-weight:500; font-size:15px; line-height:1.4; letter-spacing:0; }
+  .type-sample.reading{ font-family:var(--f-reading); font-weight:400; font-size:17px; line-height:1.7; letter-spacing:0; }
+  .type-sample.mono{ font-family:var(--f-mono); font-weight:400; font-size:12px; line-height:1.2; letter-spacing:.02em; }
+  .type-label{ font-family:var(--f-mono); font-size:11px; color:var(--paper-text-soft); white-space:nowrap; text-align:right; }
+  .type-label b{ display:block; color:var(--paper-text); font-size:12px; }
+
+  /* ---------- Scales ---------- */
+  .scale-block{ display:flex; align-items:flex-end; gap:var(--sp-3); flex-wrap:wrap; }
+  .space-chip{ background:var(--ink); border-radius:4px; }
+  .scale-label{ font-family:var(--f-mono); font-size:11px; margin-top:var(--sp-2); text-align:center; color:var(--paper-text-soft); }
+  .radius-row{ display:flex; gap:var(--sp-5); flex-wrap:wrap; }
+  .radius-demo{ width:88px; height:88px; background:var(--ink); display:flex; align-items:center; justify-content:center; }
+  .radius-demo span{ font-family:var(--f-mono); font-size:11px; color:var(--paper); }
+
+  /* ---------- Components ---------- */
+  .comp-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:var(--sp-5); }
+
+  /* Library card */
+  .book-card{ position:relative; }
+  .book-cover{
+    aspect-ratio:3/4.4; border-radius:var(--r-md); background:linear-gradient(155deg, var(--ink), var(--ink-2));
+    box-shadow:var(--shadow); position:relative; overflow:hidden;
+    display:flex; align-items:flex-end; padding:var(--sp-3);
+  }
+  .book-cover .title{ font-family:var(--f-display); color:var(--paper); font-weight:600; font-size:15px; line-height:1.25; letter-spacing:0; }
+  .ribbon-tab{
+    position:absolute; top:0; right:18px; width:20px; height:40px;
+    background:var(--oxblood);
+    clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%);
+  }
+  .ribbon-tab::after{
+    content:''; position:absolute; left:0; right:0; bottom:22%; height:3px;
+    background:var(--paper); opacity:.85;
+  }
+  .book-meta{ margin-top:var(--sp-3); }
+  .book-meta .t{ font-weight:600; font-size:13px; line-height:1.3; letter-spacing:0; }
+  .book-meta .a{ font-weight:400; font-size:12px; line-height:1.4; letter-spacing:.01em; color:var(--paper-text-soft); }
+  .book-meta .progress{ font-family:var(--f-mono); font-weight:500; font-size:11px; line-height:1.3; letter-spacing:.03em; color:var(--oxblood); margin-top:2px; }
+
+  /* Buttons */
+  .btn-stack{ display:flex; flex-direction:column; gap:var(--sp-3); align-items:flex-start; }
+  .btn{
+    font-family:var(--f-ui); font-weight:600; font-size:14px; line-height:1; letter-spacing:.01em;
+    padding:12px 22px; border-radius:var(--r-sm); border:none; cursor:pointer;
+    transition:transform var(--dur-q) var(--ease-ui), opacity var(--dur-q) var(--ease-ui);
+  }
+  .btn:active{ transform:scale(.97); }
+  .btn-primary{ background:var(--ink); color:var(--paper); }
+  .btn-secondary{ background:transparent; color:var(--ink); border:1.5px solid var(--ink); }
+  .btn-text{ background:none; color:var(--oxblood); padding-left:2px; padding-right:2px; }
+
+  /* Reader chrome mockup */
+  .reader-demo{
+    border-radius:var(--r-lg); overflow:hidden; box-shadow:var(--shadow);
+    max-width:340px; margin:0 auto;
+    transition:background var(--dur-s) var(--ease-ui), color var(--dur-s) var(--ease-ui);
+  }
+  .reader-demo.paper{ background:var(--paper); color:var(--paper-text); }
+  .reader-demo.sepia{ background:var(--sepia); color:var(--sepia-text); }
+  .reader-demo.night{ background:var(--night); color:var(--night-text); }
+  .reader-top{ display:flex; justify-content:space-between; align-items:center; padding:var(--sp-4) var(--sp-4) 0; font-family:var(--f-mono); font-weight:500; font-size:11px; line-height:1.2; letter-spacing:.02em; opacity:.65; }
+  .reader-body{ padding:var(--sp-6) var(--sp-5); font-family:var(--f-reading); font-weight:400; font-size:17px; line-height:1.85; letter-spacing:0; }
+  .reader-body .drop{ font-family:var(--f-display); font-weight:600; font-size:44px; line-height:.8; letter-spacing:0; float:left; padding:6px 8px 0 0; }
+  .reader-bottom{ display:flex; justify-content:space-between; align-items:center; padding:0 var(--sp-4) var(--sp-4); }
+  .folio{ font-family:var(--f-mono); font-weight:400; font-size:12px; line-height:1.2; letter-spacing:.02em; opacity:.7; }
+  .theme-toggle{ display:flex; gap:6px; }
+  .theme-dot{ width:18px; height:18px; border-radius:50%; cursor:pointer; border:1.5px solid transparent; transition:border var(--dur-q) var(--ease-ui); }
+  .theme-dot.paper{ background:var(--paper); }
+  .theme-dot.sepia{ background:var(--sepia); }
+  .theme-dot.night{ background:var(--night); }
+  .theme-dot.active{ border-color:var(--oxblood); }
+
+  /* Settings sheet */
+  .sheet{ background:#fff; border-radius:var(--r-lg) var(--r-lg) 0 0; box-shadow:var(--shadow); padding:var(--sp-5); max-width:340px; margin:0 auto; border:1px solid var(--border-light); }
+  .sheet .handle{ width:36px; height:4px; background:var(--border-light); border-radius:var(--r-pill); margin:0 auto var(--sp-4); }
+  .sheet-row{ display:flex; justify-content:space-between; align-items:center; padding:var(--sp-3) 0; border-bottom:1px solid var(--border-light); font-weight:400; font-size:15px; line-height:1.5; letter-spacing:0; }
+  .sheet-row:last-child{ border-bottom:none; }
+  .font-size-demo{ display:flex; gap:var(--sp-2); align-items:center; }
+  .fs-btn{ width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border-light); background:var(--paper); font-family:var(--f-ui); font-weight:600; font-size:15px; line-height:1; letter-spacing:0; cursor:pointer; }
+
+  footer{ padding:var(--sp-7) 0; text-align:center; }
+  footer p{ font-family:var(--f-mono); font-weight:500; font-size:11px; line-height:1.4; letter-spacing:.05em; color:var(--paper-text-soft); }
+
+  /* ---------- Type scale table ---------- */
+  .spec-table{ width:100%; border-collapse:collapse; margin-top:var(--sp-6); font-size:13px; }
+  .spec-table th{ font-family:var(--f-mono); font-weight:500; font-size:10px; letter-spacing:.08em; text-transform:uppercase; text-align:left; color:var(--paper-text-soft); padding:var(--sp-2) var(--sp-3); border-bottom:1px solid var(--border-light); }
+  .spec-table td{ padding:var(--sp-3); border-bottom:1px dashed var(--border-light); vertical-align:top; }
+  .spec-table tr:last-child td{ border-bottom:none; }
+  .spec-table td.role{ font-weight:600; }
+  .spec-table td.mono{ font-family:var(--f-mono); font-size:12px; color:var(--paper-text-soft); white-space:nowrap; }
+  .spec-table td.swatch-cell{ display:flex; align-items:center; gap:8px; }
+  .spec-table .dot{ width:16px; height:16px; border-radius:4px; flex-shrink:0; border:1px solid rgba(0,0,0,.08); }
+</style>
+</head>
+<body>
+
+  <div class="wrap">
+    <section class="hero" style="border-bottom:1px solid var(--border-light);">
+      <div class="hero-ribbon"></div>
+      <div class="eyebrow">Design system — v1</div>
+      <h1>Encre, papier, reliure.</h1>
+      <p>Un langage visuel pour une liseuse qui unifie EPUB, PDF et images sous une seule expérience calme et soignée — pensée comme un instrument de lecture, pas comme une app de plus.</p>
+      <p class="principle">« Le seul geste audacieux du système, c'est le ruban : tout le reste reste silencieux pour laisser place au texte. »</p>
+    </section>
+
+    <!-- PALETTE -->
+    <section>
+      <div class="eyebrow">Couleur</div>
+      <h2>Palette</h2>
+      <p class="lede">Inspirée des couleurs de reliure (toile indigo, maroquin oxblood) et du papier non blanchi — volontairement à l'écart du duo crème/terracotta devenu un réflexe générique.</p>
+
+      <div class="swatch-grid">
+        <div class="swatch"><div class="swatch-color" style="background:var(--ink)"></div><div class="swatch-meta"><b>Ink</b><span>#35304C</span><p>Accent primaire — boutons, liens actifs, dégradés de couverture</p></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--oxblood)"></div><div class="swatch-meta"><b>Oxblood</b><span>#7A3030</span><p>Accent signature — le Ruban, badges de progression</p></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--paper)"></div><div class="swatch-meta"><b>Paper</b><span>#ECE6D8</span><p>Fond clair — UI claire + thème de lecture Paper</p></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--paper-text)"></div><div class="swatch-meta"><b>Ink Text</b><span>#2B2620</span><p>Texte principal sur fond clair — 12.05:1</p></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--walnut)"></div><div class="swatch-meta"><b>Walnut</b><span>#26211D</span><p>Fond sombre — UI en mode sombre (≠ thème Nuit)</p></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--walnut-text)"></div><div class="swatch-meta"><b>Parchment</b><span>#D8CFB8</span><p>Texte principal sur fond sombre — 10.27:1</p></div></div>
+      </div>
+
+      <div class="eyebrow" style="margin-top:var(--sp-6)">Thèmes de lecture</div>
+      <div class="theme-row">
+        <div class="theme-card paper"><h3>Paper — jour</h3><p>« La bibliothèque était silencieuse, et la lumière tombait en biais sur les reliures. »</p></div>
+        <div class="theme-card sepia"><h3>Sépia — confort</h3><p>« La bibliothèque était silencieuse, et la lumière tombait en biais sur les reliures. »</p></div>
+        <div class="theme-card night"><h3>Nuit — obscurité</h3><p>« La bibliothèque était silencieuse, et la lumière tombait en biais sur les reliures. »</p></div>
+      </div>
+
+      <div class="eyebrow" style="margin-top:var(--sp-6)">Échelle complète</div>
+      <p class="lede" style="margin-bottom:var(--sp-3)">
+        Walnut (UI sombre) et Night (thème de lecture Nuit) sont volontairement deux fonds sombres distincts : Walnut habille le chrome de l'app (bibliothèque, réglages), Night est réservé à la seule surface de lecture — plus profond, pour une immersion qui se détache visiblement de l'interface générale.
+        Le contrôle de contraste a aussi fait remonter un problème : Oxblood en texte sur Walnut/Night tombe à 1.74:1 (échec AA). <b>Oxblood Tint</b> a été ajouté pour cet usage précis.
+      </p>
+      <table class="spec-table">
+        <thead>
+          <tr><th></th><th>Token</th><th>Hex</th><th>Rôle</th><th>Contexte d'usage</th><th>Contraste</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#35304C"></span></td><td class="role">Ink</td><td class="mono">#35304C</td><td>Accent primaire</td><td>Boutons primaires, liens actifs, icônes actives, dégradés de couverture générée</td><td class="mono">—</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#4A4368"></span></td><td class="role">Ink 2</td><td class="mono">#4A4368</td><td>Variante claire de l'accent primaire</td><td>Dégradés, états hover/pressed du primaire</td><td class="mono">—</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#7A3030"></span></td><td class="role">Oxblood</td><td class="mono">#7A3030</td><td>Accent signature</td><td>Le Ruban, badges de progression, liens/texte secondaire — <b>fond clair uniquement</b></td><td class="mono">7.36:1 / Paper</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#93403F"></span></td><td class="role">Oxblood 2</td><td class="mono">#93403F</td><td>Variante de l'accent signature</td><td>Dégradés du Ruban, hover du secondaire</td><td class="mono">—</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#D98C7A"></span></td><td class="role">Oxblood Tint</td><td class="mono">#D98C7A</td><td>Accent signature — fond sombre</td><td>Liens/texte oxblood sur Walnut ou Night (l'Oxblood standard échoue le contraste ici)</td><td class="mono">6.1:1 / Walnut</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#ECE6D8"></span></td><td class="role">Paper</td><td class="mono">#ECE6D8</td><td>Fond clair</td><td>Fond principal UI claire + thème de lecture Paper (par défaut)</td><td class="mono">—</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#E3DBC8"></span></td><td class="role">Paper 2</td><td class="mono">#E3DBC8</td><td>Fond clair soutenu</td><td>Cartes, sections, hover subtil sur Paper</td><td class="mono">—</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#2B2620"></span></td><td class="role">Paper Text</td><td class="mono">#2B2620</td><td>Texte principal sur clair</td><td>Corps de texte, titres sur Paper</td><td class="mono">12.05:1 / Paper</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#5E5646"></span></td><td class="role">Paper Text Soft</td><td class="mono">#5E5646</td><td>Texte secondaire sur clair</td><td>Ledes, captions, texte atténué sur Paper</td><td class="mono">5.83:1 / Paper</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#26211D"></span></td><td class="role">Walnut</td><td class="mono">#26211D</td><td>Fond sombre — UI</td><td>Fond principal du mode sombre de l'app (bibliothèque, réglages, navigation)</td><td class="mono">—</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#332C26"></span></td><td class="role">Walnut 2</td><td class="mono">#332C26</td><td>Fond sombre soutenu</td><td>Cartes, surfaces élevées en UI sombre</td><td class="mono">—</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#D8CFB8"></span></td><td class="role">Walnut Text (Parchment)</td><td class="mono">#D8CFB8</td><td>Texte principal sur sombre</td><td>Corps de texte en UI sombre</td><td class="mono">10.27:1 / Walnut</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#948A72"></span></td><td class="role">Walnut Text Soft</td><td class="mono">#948A72</td><td>Texte secondaire sur sombre</td><td>Captions atténuées en UI sombre</td><td class="mono">4.66:1 / Walnut</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#F1E2C0"></span></td><td class="role">Sepia</td><td class="mono">#F1E2C0</td><td>Fond thème lecture Sépia</td><td>Surface de lecture uniquement (thème confort)</td><td class="mono">—</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#E9D6AC"></span></td><td class="role">Sepia 2</td><td class="mono">#E9D6AC</td><td>Fond sépia soutenu</td><td>Contrôles, feuilles affichées sur le thème Sépia</td><td class="mono">—</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#4A3826"></span></td><td class="role">Sepia Text</td><td class="mono">#4A3826</td><td>Texte sur Sépia</td><td>Corps de lecture en thème Sépia</td><td class="mono">8.69:1 / Sepia</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#1E1B22"></span></td><td class="role">Night</td><td class="mono">#1E1B22</td><td>Fond thème lecture Nuit</td><td>Surface de lecture uniquement — plus profond que Walnut, pour une immersion distincte de l'UI</td><td class="mono">—</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#2A2530"></span></td><td class="role">Night 2</td><td class="mono">#2A2530</td><td>Fond nuit soutenu</td><td>Contrôles, feuilles affichées sur le thème Nuit</td><td class="mono">—</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#C9C0AE"></span></td><td class="role">Night Text</td><td class="mono">#C9C0AE</td><td>Texte sur Nuit</td><td>Corps de lecture en thème Nuit</td><td class="mono">9.42:1 / Night</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#DAD1BC"></span></td><td class="role">Border Light</td><td class="mono">#DAD1BC</td><td>Séparateur clair</td><td>Hairlines, contours de carte en UI/thème clair</td><td class="mono">—</td></tr>
+          <tr><td class="swatch-cell"><span class="dot" style="background:#3A342E"></span></td><td class="role">Border Dark</td><td class="mono">#3A342E</td><td>Séparateur sombre</td><td>Hairlines en UI/thème sombre</td><td class="mono">—</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- TYPOGRAPHY -->
+    <section>
+      <div class="eyebrow">Typographie</div>
+      <h2>Quatre rôles, une hiérarchie claire</h2>
+      <p class="lede">Une serif de caractère pour les moments de marque, une grotesque humaniste pour l'interface, une serif conçue pour la lecture longue, et une monospace pour tout ce qui relève de la pagination et des métadonnées — comme les marques d'imprimeur.</p>
+
+      <div class="type-row">
+        <div class="type-sample display">Le Ruban</div>
+        <div class="type-label"><b>Fraunces</b>Display — moments de marque, restreint</div>
+      </div>
+      <div class="type-row">
+        <div class="type-sample ui-lg">Ma bibliothèque</div>
+        <div class="type-label"><b>Public Sans / 600</b>Titres d'écran, navigation</div>
+      </div>
+      <div class="type-row">
+        <div class="type-sample ui">Importer un ouvrage</div>
+        <div class="type-label"><b>Public Sans / 500</b>Boutons, labels, métadonnées</div>
+      </div>
+      <div class="type-row">
+        <div class="type-sample reading">Le contenu se déploie avec la générosité d'une page imprimée.</div>
+        <div class="type-label"><b>Literata</b>Corps de lecture (EPUB)</div>
+      </div>
+      <div class="type-row">
+        <div class="type-sample mono">P. 142 / 388 — 36%</div>
+        <div class="type-label"><b>IBM Plex Mono</b>Folios, pourcentages, colophon</div>
+      </div>
+
+      <div class="eyebrow" style="margin-top:var(--sp-6)">Échelle complète</div>
+      <table class="spec-table">
+        <thead>
+          <tr><th>Rôle</th><th>Fonte</th><th>Graisse</th><th>Taille</th><th>Interligne</th><th>Tracking</th><th>Usage</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="role">Hero</td><td class="mono">Fraunces</td><td class="mono">600</td><td class="mono">34–56px (clamp)</td><td class="mono">1.05</td><td class="mono">-0.01em</td><td>Nom de l'app, onboarding</td></tr>
+          <tr><td class="role">Heading</td><td class="mono">Fraunces</td><td class="mono">500</td><td class="mono">28px</td><td class="mono">1.15</td><td class="mono">-0.005em</td><td>Titres de section marquants (rares)</td></tr>
+          <tr><td class="role">Quote / Accent</td><td class="mono">Fraunces italic</td><td class="mono">400</td><td class="mono">18px</td><td class="mono">1.5</td><td class="mono">0</td><td>Citations, états vides</td></tr>
+          <tr><td class="role">Cover Title</td><td class="mono">Fraunces</td><td class="mono">600</td><td class="mono">15px</td><td class="mono">1.25</td><td class="mono">0</td><td>Titre sur couverture générée</td></tr>
+          <tr><td class="role">Reading Drop Cap</td><td class="mono">Fraunces</td><td class="mono">600</td><td class="mono">44px</td><td class="mono">0.8</td><td class="mono">0</td><td>Lettrine d'ouverture de chapitre</td></tr>
+          <tr><td class="role">Screen Title</td><td class="mono">Public Sans</td><td class="mono">600</td><td class="mono">20px</td><td class="mono">1.3</td><td class="mono">-0.005em</td><td>Titres d'écran, navigation</td></tr>
+          <tr><td class="role">Body / Label</td><td class="mono">Public Sans</td><td class="mono">500</td><td class="mono">15px</td><td class="mono">1.4</td><td class="mono">0</td><td>Labels actifs, métadonnées mises en avant</td></tr>
+          <tr><td class="role">Body Regular</td><td class="mono">Public Sans</td><td class="mono">400</td><td class="mono">15px</td><td class="mono">1.5</td><td class="mono">0</td><td>Texte courant d'interface, réglages</td></tr>
+          <tr><td class="role">Button Label</td><td class="mono">Public Sans</td><td class="mono">600</td><td class="mono">14px</td><td class="mono">1</td><td class="mono">0.01em</td><td>Boutons</td></tr>
+          <tr><td class="role">Caption</td><td class="mono">Public Sans</td><td class="mono">400</td><td class="mono">12px</td><td class="mono">1.4</td><td class="mono">0.01em</td><td>Auteur, texte secondaire</td></tr>
+          <tr><td class="role">Tab / Nav Label</td><td class="mono">Public Sans</td><td class="mono">500</td><td class="mono">11px</td><td class="mono">1.2</td><td class="mono">0.02em</td><td>Barre de navigation</td></tr>
+          <tr><td class="role">Reading Body</td><td class="mono">Literata</td><td class="mono">400</td><td class="mono">17px (12–24 ajustable)</td><td class="mono">1.7 (1.5 / 1.7 / 1.9)</td><td class="mono">0</td><td>Corps de lecture EPUB</td></tr>
+          <tr><td class="role">Mono Eyebrow</td><td class="mono">IBM Plex Mono</td><td class="mono">500</td><td class="mono">11px</td><td class="mono">1.2</td><td class="mono">0.14em (maj.)</td><td>Étiquettes de section, colophon</td></tr>
+          <tr><td class="role">Mono Folio</td><td class="mono">IBM Plex Mono</td><td class="mono">400</td><td class="mono">12px</td><td class="mono">1.2</td><td class="mono">0.02em</td><td>Pagination, pourcentages</td></tr>
+          <tr><td class="role">Mono Chip / Badge</td><td class="mono">IBM Plex Mono</td><td class="mono">500</td><td class="mono">11px</td><td class="mono">1.3</td><td class="mono">0.03em</td><td>Badge de format ("EPUB · 62%")</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SCALES -->
+    <section>
+      <div class="eyebrow">Structure</div>
+      <h2>Espacements &amp; rayons</h2>
+      <p class="lede">Grille de 4px. Les rayons évoquent un coin de page légèrement corné — jamais totalement carré, jamais en pilule.</p>
+
+      <div class="scale-block" style="margin-bottom:var(--sp-6)">
+        <div><div class="space-chip" style="width:4px;height:24px"></div><div class="scale-label">4</div></div>
+        <div><div class="space-chip" style="width:8px;height:24px"></div><div class="scale-label">8</div></div>
+        <div><div class="space-chip" style="width:12px;height:24px"></div><div class="scale-label">12</div></div>
+        <div><div class="space-chip" style="width:16px;height:24px"></div><div class="scale-label">16</div></div>
+        <div><div class="space-chip" style="width:24px;height:24px"></div><div class="scale-label">24</div></div>
+        <div><div class="space-chip" style="width:32px;height:24px"></div><div class="scale-label">32</div></div>
+        <div><div class="space-chip" style="width:48px;height:24px"></div><div class="scale-label">48</div></div>
+        <div><div class="space-chip" style="width:64px;height:24px"></div><div class="scale-label">64</div></div>
+      </div>
+
+      <div class="radius-row">
+        <div><div class="radius-demo" style="border-radius:var(--r-sm)"><span>sm · 8</span></div></div>
+        <div><div class="radius-demo" style="border-radius:var(--r-md)"><span>md · 14</span></div></div>
+        <div><div class="radius-demo" style="border-radius:var(--r-lg)"><span>lg · 20</span></div></div>
+        <div><div class="radius-demo" style="border-radius:var(--r-pill)"><span>pill</span></div></div>
+      </div>
+    </section>
+
+    <!-- MOTION -->
+    <section>
+      <div class="eyebrow">Mouvement</div>
+      <h2>Retenue délibérée</h2>
+      <p class="lede">Le mouvement sert la lecture, jamais l'inverse : micro-retour tactile rapide, transitions d'interface discrètes, et une seule courbe signature — plus lourde, plus organique — réservée au tourne-page et au changement de thème.</p>
+      <div class="comp-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="swatch-meta" style="border:1px solid var(--border-light);border-radius:var(--r-sm);padding:var(--sp-3)"><b>120ms · ease-ui</b><span>Retour tactile (boutons, tap)</span></div>
+        <div class="swatch-meta" style="border:1px solid var(--border-light);border-radius:var(--r-sm);padding:var(--sp-3)"><b>260ms · ease-ui</b><span>Transitions d'écran, feuilles</span></div>
+        <div class="swatch-meta" style="border:1px solid var(--border-light);border-radius:var(--r-sm);padding:var(--sp-3)"><b>480ms · ease-page</b><span>Tourne-page, fondu de thème</span></div>
+      </div>
+    </section>
+
+    <!-- COMPONENTS -->
+    <section>
+      <div class="eyebrow">Composants</div>
+      <h2>Bibliothèque</h2>
+      <p class="lede">Le ruban marque-page dépasse de chaque couverture : sa longueur encode la progression de lecture.</p>
+      <div class="comp-grid">
+        <div class="book-card">
+          <div class="book-cover"><div class="ribbon-tab"></div><div class="title">Les Villes invisibles</div></div>
+          <div class="book-meta"><div class="t">Les Villes invisibles</div><div class="a">Italo Calvino</div><div class="progress">EPUB · 62%</div></div>
+        </div>
+        <div class="book-card">
+          <div class="book-cover" style="background:linear-gradient(155deg,var(--oxblood),var(--oxblood-2))"><div class="ribbon-tab" style="background:var(--ink)"></div><div class="title">Rapport annuel</div></div>
+          <div class="book-meta"><div class="t">Rapport annuel</div><div class="a">Document</div><div class="progress">PDF · 12%</div></div>
+        </div>
+        <div class="book-card">
+          <div class="book-cover" style="background:linear-gradient(155deg,#4A4368,var(--ink))"><div class="ribbon-tab"></div><div class="title">Tome 03</div></div>
+          <div class="book-meta"><div class="t">Tome 03</div><div class="a">Dossier d'images · 214 pages</div><div class="progress">BD · 8%</div></div>
+        </div>
+      </div>
+
+      <h2 style="margin-top:var(--sp-7)">Boutons</h2>
+      <div class="btn-stack">
+        <button class="btn btn-primary">Ouvrir la lecture</button>
+        <button class="btn btn-secondary">Importer un dossier</button>
+        <button class="btn btn-text">Marquer comme lu →</button>
+      </div>
+
+      <h2 style="margin-top:var(--sp-7)">Chrome du lecteur</h2>
+      <p class="lede">Trois thèmes de lecture, un même gabarit. Touchez un point pour prévisualiser.</p>
+      <div id="readerDemo" class="reader-demo paper">
+        <div class="reader-top">
+          <span>Les Villes invisibles</span>
+          <div class="theme-toggle">
+            <div class="theme-dot paper active" data-theme="paper"></div>
+            <div class="theme-dot sepia" data-theme="sepia"></div>
+            <div class="theme-dot night" data-theme="night"></div>
+          </div>
+        </div>
+        <div class="reader-body">
+          <span class="drop">L</span>a ville ne dit pas son passé, elle le contient comme les lignes d'une main, écrit sur les angles des rues, sur les grilles des fenêtres.
+        </div>
+        <div class="reader-bottom">
+          <span class="folio">142 / 388</span>
+          <span class="folio">36%</span>
+        </div>
+      </div>
+
+      <h2 style="margin-top:var(--sp-7)">Feuille de réglages</h2>
+      <div class="sheet">
+        <div class="handle"></div>
+        <div class="sheet-row"><span>Thème de lecture</span><span class="folio" style="font-family:var(--f-mono)">Sépia</span></div>
+        <div class="sheet-row"><span>Taille de police</span>
+          <div class="font-size-demo">
+            <button class="fs-btn">–</button>
+            <span style="font-family:var(--f-mono);font-size:12px">17</span>
+            <button class="fs-btn">+</button>
+          </div>
+        </div>
+        <div class="sheet-row"><span>Marges</span><span class="folio" style="font-family:var(--f-mono)">Confort</span></div>
+      </div>
+    </section>
+
+    <!-- SIGNATURE -->
+    <section style="border-bottom:none;">
+      <div class="eyebrow">Signature</div>
+      <h2>Le Ruban</h2>
+      <p class="lede" style="max-width:64ch;">
+        Un ruban de tissu dépasse de chaque couverture, comme dans un livre relié — sa longueur visible encode la progression de lecture, et un glissé permet de déposer un marque-page. On le retrouve dans la bibliothèque (sur les couvertures), dans le lecteur (comme contrôle de marque-page) et pendant l'import (il se déroule pour signaler qu'un ouvrage vient d'être ajouté). C'est le seul élément décoratif du système : tout le reste — grille, ombres, rayons — reste au service du texte.
+      </p>
+    </section>
+
+    <footer>
+      <p>DESIGN SYSTEM — LISEUSE — V1 — TYPESCRIPT / REACT NATIVE</p>
+    </footer>
+  </div>
+
+<script>
+  document.querySelectorAll('.theme-dot').forEach(dot=>{
+    dot.addEventListener('click', ()=>{
+      document.querySelectorAll('.theme-dot').forEach(d=>d.classList.remove('active'));
+      dot.classList.add('active');
+      const demo = document.getElementById('readerDemo');
+      demo.classList.remove('paper','sepia','night');
+      demo.classList.add(dot.dataset.theme);
+    });
+  });
+</script>
+</body>
+</html>
