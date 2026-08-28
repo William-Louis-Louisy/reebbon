@@ -16,10 +16,10 @@ The application must provide a consistent reading experience while keeping forma
 
 Read these documents before making architectural or product decisions:
 
-- `docs/product/cahier-des-charges-liseuse-ebook.md`
-- `docs/product/backlog-liseuse-ebook.md`
-- `docs/product/sprint-planning-liseuse-ebook.md`
-- `docs/design/design-system-liseuse.html`
+- `docs/cahier-des-charges.md`
+- `docs/backlog.md`
+- `docs/sprint-planning.md`
+- `docs/design-system.html`
 
 Do not silently invent requirements when the specifications are ambiguous.
 
@@ -259,7 +259,7 @@ Fonts required by the UI and EPUB reading experience must be bundled with the ap
 
 # Design system
 
-`docs/design/design-system-liseuse.html` is the visual source of truth.
+`docs/design-system.html` is the visual source of truth.
 
 Create reusable TypeScript design tokens.
 
