@@ -1,3 +1,5 @@
 # Application Layer
 
-Cette couche accueillera les cas d'usage et ports applicatifs. Elle est creee ici pour verrouiller la structure cible sans anticiper le Sprint 1.
+Cette couche definit les ports utilises par les futurs cas d'usage : `Reader`, importers, bibliotheque, progression et marque-pages.
+
+Les adaptateurs techniques implementent ces contrats depuis `infrastructure`.
