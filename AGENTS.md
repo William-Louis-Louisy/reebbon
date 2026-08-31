@@ -42,6 +42,40 @@ Never expand product scope without an explicit Issue.
 
 ---
 
+## Autonomous execution
+
+A GitHub Issue assigned to Codex authorizes Codex to complete the full scope autonomously.
+
+Codex may, without asking for permission:
+- create a feature branch;
+- modify files within the Issue scope;
+- install required dependencies compatible with the approved stack;
+- run lint, typecheck, tests and Expo commands;
+- commit changes;
+- push the feature branch;
+- open and update the Pull Request;
+- fix CI or review issues related to that Pull Request.
+
+Codex should not ask the user to choose implementation details, branch names,
+worktree locations, testing strategy, commit boundaries, or whether to open a PR.
+Use reasonable defaults and continue.
+
+Codex must ask the user only when a genuine product or architectural decision
+cannot be resolved from the Issue, AGENTS.md, or repository documentation.
+
+## Human approval boundary
+
+Codex MUST NOT:
+- merge a Pull Request;
+- enable auto-merge;
+- push directly to `main`;
+- force-push `main`;
+- bypass branch protection.
+
+The human controls the final merge into `main`.
+
+---
+
 # Architecture
 
 Use a layered architecture with dependency inversion.
