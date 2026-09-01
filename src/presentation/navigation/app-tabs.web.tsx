@@ -20,7 +20,7 @@ export default function AppTabs() {
       <TabList asChild>
         <WebTabList>
           <TabTrigger name="index" href="/" asChild>
-            <WebTabButton>Fondations</WebTabButton>
+            <WebTabButton>Bibliothèque</WebTabButton>
           </TabTrigger>
           <TabTrigger name="explore" href="/explore" asChild>
             <WebTabButton>Tokens</WebTabButton>
