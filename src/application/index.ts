@@ -5,3 +5,10 @@ export type { Reader, ReaderError, ReaderProgress } from './reader/reader';
 export type { BookmarkRepository } from './reading/bookmark-repository';
 export type { ReadingProgressRepository } from './reading/reading-progress-repository';
 export type { RepositoryError } from './shared/repository-error';
+export type {
+  BookContentStore,
+  FileStorageError,
+  FileStorageOperation,
+  StagingArea,
+  StoredBookContent,
+} from './storage/book-content-store';

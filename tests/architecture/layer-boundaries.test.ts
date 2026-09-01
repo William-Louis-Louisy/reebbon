@@ -68,3 +68,19 @@ test('application contracts do not depend on presentation, infrastructure, React
     }
   }
 });
+
+test('infrastructure adapters do not depend on presentation', () => {
+  const infrastructureRoot = resolve(sourceRoot, 'infrastructure');
+
+  for (const file of listTypeScriptFiles(infrastructureRoot)) {
+    const source = readFileSync(file, 'utf8');
+
+    for (const specifier of importSpecifiers(source)) {
+      assert.equal(
+        specifier.includes('/presentation/'),
+        false,
+        `${relative(sourceRoot, file)} imports forbidden dependency ${specifier}`,
+      );
+    }
+  }
+});
