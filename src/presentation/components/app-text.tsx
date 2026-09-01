@@ -8,8 +8,10 @@ import { useAppTheme } from '../hooks/use-app-theme';
 export type AppTextVariant =
   | 'hero'
   | 'heading'
+  | 'quote'
   | 'screenTitle'
   | 'label'
+  | 'button'
   | 'body'
   | 'caption'
   | 'eyebrow'
@@ -38,8 +40,10 @@ export function AppText({
         { color: resolveTone(theme, tone) },
         variant === 'hero' && styles.hero,
         variant === 'heading' && styles.heading,
+        variant === 'quote' && styles.quote,
         variant === 'screenTitle' && styles.screenTitle,
         variant === 'label' && styles.label,
+        variant === 'button' && styles.button,
         variant === 'body' && styles.body,
         variant === 'caption' && styles.caption,
         variant === 'eyebrow' && styles.eyebrow,
@@ -83,6 +87,12 @@ const styles = StyleSheet.create({
     lineHeight: designSystemTokens.typography.roles.heading.lineHeight,
     letterSpacing: designSystemTokens.typography.roles.heading.tracking,
   },
+  quote: {
+    fontFamily: offlineFontFamilies.displayItalic,
+    fontSize: designSystemTokens.typography.roles.quote.size,
+    lineHeight: designSystemTokens.typography.roles.quote.lineHeight,
+    letterSpacing: designSystemTokens.typography.roles.quote.tracking,
+  },
   screenTitle: {
     fontFamily: offlineFontFamilies.uiSemiBold,
     fontSize: designSystemTokens.typography.roles.screenTitle.size,
@@ -94,6 +104,12 @@ const styles = StyleSheet.create({
     fontSize: designSystemTokens.typography.roles.label.size,
     lineHeight: designSystemTokens.typography.roles.label.lineHeight,
     letterSpacing: designSystemTokens.typography.roles.label.tracking,
+  },
+  button: {
+    fontFamily: offlineFontFamilies.uiSemiBold,
+    fontSize: designSystemTokens.typography.roles.button.size,
+    lineHeight: designSystemTokens.typography.roles.button.lineHeight,
+    letterSpacing: designSystemTokens.typography.roles.button.tracking,
   },
   body: {
     fontFamily: offlineFontFamilies.uiRegular,

@@ -62,6 +62,22 @@ export const designSystemTokens = {
     uiTransition: 260,
     readingThemeTransition: 480,
   },
+  interaction: {
+    pressedOpacity: 0.78,
+    pressedScale: 0.97,
+  },
+  gradients: {
+    coverFallback: 'linear-gradient(155deg, #35304C, #4A4368)',
+  },
+  shadows: {
+    bookCover: {
+      shadowColor: '#35304C',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.16,
+      shadowRadius: 14,
+      elevation: 6,
+    },
+  },
   typography: {
     families: {
       display: 'Fraunces',
@@ -84,6 +100,13 @@ export const designSystemTokens = {
         size: 28,
         lineHeight: 32,
         tracking: -0.14,
+      },
+      quote: {
+        family: 'display',
+        weight: '400',
+        size: 18,
+        lineHeight: 27,
+        tracking: 0,
       },
       screenTitle: {
         family: 'ui',
@@ -145,6 +168,34 @@ export const designSystemTokens = {
   },
   layout: {
     maxContentWidth: 1000,
+    libraryGrid: {
+      fallbackViewportWidth: 320,
+      tabletBreakpoint: 600,
+      wideBreakpoint: 900,
+      compactColumns: 2,
+      tabletColumns: 3,
+      wideColumns: 4,
+      compactPadding: 16,
+      regularPadding: 24,
+      gap: 16,
+      coverAspectRatio: 3 / 4.4,
+      emptyStateMinHeight: 320,
+      emptyBookWidth: 96,
+      emptyBookHeight: 132,
+      navigationClearance: 96,
+    },
+  },
+  components: {
+    ribbon: {
+      width: 20,
+      minHeight: 32,
+      maxHeight: 72,
+      notchDepth: 8,
+      markerHeight: 3,
+      markerOpacity: 0.85,
+      markerBottomOffset: 16,
+      coverInset: 18,
+    },
   },
 } as const;
 

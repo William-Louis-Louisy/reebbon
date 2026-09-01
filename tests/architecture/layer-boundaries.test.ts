@@ -14,7 +14,9 @@ function listTypeScriptFiles(directory: string): string[] {
       return listTypeScriptFiles(path);
     }
 
-    return entry.isFile() && path.endsWith('.ts') ? [path] : [];
+    return entry.isFile() && (path.endsWith('.ts') || path.endsWith('.tsx'))
+      ? [path]
+      : [];
   });
 }
 
@@ -78,6 +80,22 @@ test('infrastructure adapters do not depend on presentation', () => {
     for (const specifier of importSpecifiers(source)) {
       assert.equal(
         specifier.includes('/presentation/'),
+        false,
+        `${relative(sourceRoot, file)} imports forbidden dependency ${specifier}`,
+      );
+    }
+  }
+});
+
+test('presentation does not access infrastructure adapters directly', () => {
+  const presentationRoot = resolve(sourceRoot, 'presentation');
+
+  for (const file of listTypeScriptFiles(presentationRoot)) {
+    const source = readFileSync(file, 'utf8');
+
+    for (const specifier of importSpecifiers(source)) {
+      assert.equal(
+        specifier.includes('/infrastructure/'),
         false,
         `${relative(sourceRoot, file)} imports forbidden dependency ${specifier}`,
       );

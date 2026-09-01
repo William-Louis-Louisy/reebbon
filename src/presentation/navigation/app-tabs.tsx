@@ -11,7 +11,7 @@ export default function AppTabs() {
       indicatorColor={theme.accent}
       labelStyle={{ selected: { color: theme.text } }}>
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Fondations</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Bibliothèque</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
           src={require('@/assets/images/tabIcons/home.png')}
           renderingMode="template"
