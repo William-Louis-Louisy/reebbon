@@ -65,6 +65,7 @@ export const designSystemTokens = {
   interaction: {
     pressedOpacity: 0.78,
     pressedScale: 0.97,
+    disabledOpacity: 0.52,
   },
   gradients: {
     coverFallback: 'linear-gradient(155deg, #35304C, #4A4368)',
