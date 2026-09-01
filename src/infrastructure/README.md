@@ -1,5 +1,5 @@
 # Infrastructure Layer
 
-Cette couche accueillera les adaptateurs techniques (SQLite, FileSystem, renderers) qui implementent les ports de `application`.
+Cette couche contient les adaptateurs techniques qui implementent les ports de `application`.
 
-Elle reste sans implementation dans l'Issue #2 afin de respecter le scope des contrats.
+Le stockage local est initialise par `initializeLocalStorage` : migrations SQLite, repositories et repertoires FileSystem. Les futurs renderers resteront isoles dans leurs propres adaptateurs.
