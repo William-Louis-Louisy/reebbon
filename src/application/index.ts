@@ -1,5 +1,14 @@
 export type { ImportError, ImportFormat, ImportResult, ImportSource, ImportSourceFor, Importer } from './importing/importer';
 export { readerFormatForImportFormat } from './importing/importer';
+export type {
+  FileImportSourcePicker,
+  FileImportSourcePickerError,
+  PickFileImportSourceOptions,
+} from './importing/file-import-source-picker';
+export {
+  createEpubImporter,
+  type EpubImporterDependencies,
+} from './importing/import-epub';
 export type { BookRepository } from './library/book-repository';
 export {
   createListLibraryBooks,

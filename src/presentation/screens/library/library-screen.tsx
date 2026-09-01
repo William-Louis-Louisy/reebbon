@@ -24,12 +24,14 @@ export type LibraryScreenState =
 
 export interface LibraryScreenProps {
   readonly state: LibraryScreenState;
+  readonly isImporting: boolean;
   readonly onImportPress: () => void;
   readonly onRetryPress: () => void;
 }
 
 export default function LibraryScreen({
   state,
+  isImporting,
   onImportPress,
   onRetryPress,
 }: LibraryScreenProps) {
@@ -58,10 +60,17 @@ export default function LibraryScreen({
             <LibraryStatus
               onImportPress={onImportPress}
               onRetryPress={onRetryPress}
+              isImporting={isImporting}
               status={state.status}
             />
           }
-          ListHeaderComponent={<LibraryHeader />}
+          ListHeaderComponent={
+            <LibraryHeader
+              isImporting={isImporting}
+              onImportPress={onImportPress}
+              showImportAction={books.length > 0}
+            />
+          }
           ListHeaderComponentStyle={styles.headerSpacing}
           numColumns={metrics.columns}
           renderItem={({ item }) => (
@@ -75,7 +84,17 @@ export default function LibraryScreen({
   );
 }
 
-function LibraryHeader() {
+interface LibraryHeaderProps {
+  readonly isImporting: boolean;
+  readonly onImportPress: () => void;
+  readonly showImportAction: boolean;
+}
+
+function LibraryHeader({
+  isImporting,
+  onImportPress,
+  showImportAction,
+}: LibraryHeaderProps) {
   return (
     <View style={styles.header}>
       <AppText tone="accent" variant="eyebrow">
@@ -85,18 +104,27 @@ function LibraryHeader() {
       <AppText tone="muted">
         Vos ouvrages, leur couverture et votre progression réunis au même endroit.
       </AppText>
+      {showImportAction ? (
+        <LibraryAction
+          disabled={isImporting}
+          label={isImporting ? 'Import en cours…' : 'Importer un EPUB'}
+          onPress={onImportPress}
+        />
+      ) : null}
     </View>
   );
 }
 
 interface LibraryStatusProps {
   readonly status: LibraryScreenState['status'];
+  readonly isImporting: boolean;
   readonly onImportPress: () => void;
   readonly onRetryPress: () => void;
 }
 
 function LibraryStatus({
   status,
+  isImporting,
   onImportPress,
   onRetryPress,
 }: LibraryStatusProps) {
@@ -138,29 +166,37 @@ function LibraryStatus({
         Votre prochaine lecture commence ici.
       </AppText>
       <AppText style={styles.statusCopy} tone="muted">
-        Importez un ouvrage pour composer votre bibliothèque hors ligne.
+        Importez un fichier EPUB pour composer votre bibliothèque hors ligne.
       </AppText>
-      <LibraryAction label="Importer un ouvrage" onPress={onImportPress} />
+      <LibraryAction
+        disabled={isImporting}
+        label={isImporting ? 'Import en cours…' : 'Importer un EPUB'}
+        onPress={onImportPress}
+      />
     </View>
   );
 }
 
 interface LibraryActionProps {
+  readonly disabled?: boolean;
   readonly label: string;
   readonly onPress: () => void;
 }
 
-function LibraryAction({ label, onPress }: LibraryActionProps) {
+function LibraryAction({ disabled = false, label, onPress }: LibraryActionProps) {
   const theme = useAppTheme();
 
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ busy: disabled, disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.action,
         { backgroundColor: theme.text },
         pressed && styles.actionPressed,
+        disabled && styles.actionDisabled,
       ]}>
       <AppText style={{ color: theme.background }} variant="button">
         {label}
@@ -227,5 +263,8 @@ const styles = StyleSheet.create({
   actionPressed: {
     opacity: designSystemTokens.interaction.pressedOpacity,
     transform: [{ scale: designSystemTokens.interaction.pressedScale }],
+  },
+  actionDisabled: {
+    opacity: designSystemTokens.interaction.disabledOpacity,
   },
 });
