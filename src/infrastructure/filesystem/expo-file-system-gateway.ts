@@ -23,6 +23,13 @@ export class ExpoFileSystemGateway implements FileSystemGateway {
     await new File(sourceUri).copy(new File(destinationUri));
   }
 
+  public writeFile(destinationUri: string, bytes: Uint8Array): Promise<void> {
+    const file = new File(destinationUri);
+    file.create({ overwrite: false });
+    file.write(bytes);
+    return Promise.resolve();
+  }
+
   public async moveDirectory(sourceUri: string, destinationUri: string): Promise<void> {
     await new Directory(sourceUri).move(new Directory(destinationUri));
   }

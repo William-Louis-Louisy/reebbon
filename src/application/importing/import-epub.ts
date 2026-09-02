@@ -13,8 +13,20 @@ import type {
   FileStorageOperation,
 } from '../storage/book-content-store';
 import type {
+  BookMetadataExtractor,
+  ExtractedBookMetadata,
+  ExtractedCoverMediaType,
+  MetadataExtractionError,
+} from './book-metadata-extractor';
+import { normalizeBookMetadataText } from './book-metadata-extractor';
+import type {
+  FormatDetectionError,
+  ImportFormatDetector,
+} from './import-format-detector';
+import type {
   FileImportSource,
   ImportError,
+  ImportFormat,
   ImportResult,
   Importer,
 } from './importer';
@@ -25,6 +37,8 @@ const FALLBACK_EPUB_TITLE = 'Ouvrage EPUB';
 export interface EpubImporterDependencies {
   readonly books: Pick<BookRepository, 'save' | 'delete'>;
   readonly content: BookContentStore;
+  readonly detector: ImportFormatDetector;
+  readonly metadata: BookMetadataExtractor<'epub'>;
   readonly createId: () => string;
   readonly now: () => Date;
 }
@@ -41,11 +55,17 @@ export function createEpubImporter(
   return {
     format: 'epub',
     async importBook(source) {
-      if (!isEpubSource(source)) {
-        return err({
-          kind: 'unsupported-format',
-          detectedFormat: extensionFromName(source.name),
-        });
+      const detected = await callDetector(dependencies.detector, source);
+      if (!detected.ok) {
+        return err(detected.error);
+      }
+      if (detected.value !== 'epub') {
+        return err({ kind: 'unsupported-format', detectedFormat: detected.value });
+      }
+
+      const extracted = await callMetadataExtractor(dependencies.metadata, source);
+      if (!extracted.ok) {
+        return err(extracted.error);
       }
 
       const identifiers = createIdentifiers(dependencies.createId);
@@ -91,6 +111,25 @@ export function createEpubImporter(
         return fail(storageErrorForImport(source, stagedFile.error, 'copy'));
       }
 
+      const extractedCover = extracted.value.cover;
+      let coverFileName: string | undefined;
+      if (extractedCover !== undefined) {
+        const stagedCoverFileName = fileNameForCover(extractedCover.mediaType);
+        coverFileName = stagedCoverFileName;
+        const stagedCover = await callStorage(
+          () =>
+            dependencies.content.stageBytes(
+              importId,
+              extractedCover.bytes,
+              stagedCoverFileName,
+            ),
+          'stage-bytes',
+        );
+        if (!stagedCover.ok) {
+          return fail(storageErrorForImport(source, stagedCover.error, 'copy'));
+        }
+      }
+
       progress.commitAttempted = true;
       const committed = await callStorage(
         () => dependencies.content.commitStagingArea(importId, bookId),
@@ -100,11 +139,16 @@ export function createEpubImporter(
         return fail(storageErrorForImport(source, committed.error, 'copy'));
       }
 
+      const author = normalizeBookMetadataText(extracted.value.author);
       const book: Book<'epub'> = {
         id: bookId,
-        title: titleFromName(source.name),
+        title: normalizeBookMetadataText(extracted.value.title) ?? titleFromName(source.name),
+        ...(author === undefined ? {} : { author }),
         format: 'epub',
         fileUri: joinUri(committed.value.uri, STORED_EPUB_FILE_NAME),
+        ...(coverFileName === undefined
+          ? {}
+          : { coverUri: joinUri(committed.value.uri, coverFileName) }),
         createdAt: safelyCreateDate(dependencies.now),
       };
 
@@ -119,18 +163,46 @@ export function createEpubImporter(
   };
 }
 
-function isEpubSource(source: FileImportSource): boolean {
-  return source.uri.trim().length > 0 && /\.epub$/i.test(source.name.trim());
-}
-
-function extensionFromName(name: string): string | undefined {
-  const match = /\.([^.]+)$/.exec(name.trim());
-  return match?.[1]?.toLowerCase();
-}
-
 function titleFromName(name: string): string {
   const title = name.trim().replace(/\.epub$/i, '').trim();
-  return title.length > 0 ? title : FALLBACK_EPUB_TITLE;
+  return normalizeBookMetadataText(title) ?? FALLBACK_EPUB_TITLE;
+}
+
+function fileNameForCover(mediaType: ExtractedCoverMediaType): string {
+  switch (mediaType) {
+    case 'image/gif':
+      return 'cover.gif';
+    case 'image/jpeg':
+      return 'cover.jpg';
+    case 'image/png':
+      return 'cover.png';
+    case 'image/svg+xml':
+      return 'cover.svg';
+    case 'image/webp':
+      return 'cover.webp';
+  }
+}
+
+async function callDetector(
+  detector: ImportFormatDetector,
+  source: FileImportSource,
+): Promise<Result<ImportFormat, FormatDetectionError>> {
+  try {
+    return await detector.detect(source);
+  } catch {
+    return err({ kind: 'permission-or-access-failure', source });
+  }
+}
+
+async function callMetadataExtractor(
+  extractor: BookMetadataExtractor<'epub'>,
+  source: FileImportSource,
+): Promise<Result<ExtractedBookMetadata, MetadataExtractionError>> {
+  try {
+    return await extractor.extract(source);
+  } catch {
+    return err({ kind: 'metadata-extraction-failure', format: 'epub' });
+  }
 }
 
 function createIdentifiers(

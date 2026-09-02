@@ -4,6 +4,7 @@ export type FileStorageOperation =
   | 'initialize'
   | 'create-staging-area'
   | 'stage-file'
+  | 'stage-bytes'
   | 'commit-staging-area'
   | 'remove-staging-area'
   | 'remove-book-files';
@@ -32,6 +33,11 @@ export interface BookContentStore {
   stageFile(
     importId: string,
     sourceUri: string,
+    destinationName: string,
+  ): Promise<Result<string, FileStorageError>>;
+  stageBytes(
+    importId: string,
+    bytes: Uint8Array,
     destinationName: string,
   ): Promise<Result<string, FileStorageError>>;
   commitStagingArea(

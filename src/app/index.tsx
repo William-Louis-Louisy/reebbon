@@ -4,12 +4,15 @@ import { Alert } from 'react-native';
 
 import {
   createEpubImporter,
+  createImportFormatDetector,
   createListLibraryBooks,
   type ImportError,
   type LibraryBookItem,
 } from '@/application';
 import {
+  EpubMetadataExtractor,
   ExpoFileImportSourcePicker,
+  ExpoImportFileReader,
   initializeLocalStorage,
   type LocalStorage,
 } from '@/infrastructure';
@@ -21,6 +24,9 @@ const loadingState: LibraryScreenState = { status: 'loading' };
 const failureState: LibraryScreenState = { status: 'failure' };
 const epubMimeTypes = ['application/epub+zip'] as const;
 const importSourcePicker = new ExpoFileImportSourcePicker();
+const importFileReader = new ExpoImportFileReader();
+const importFormatDetector = createImportFormatDetector({ files: importFileReader });
+const epubMetadataExtractor = new EpubMetadataExtractor(importFileReader);
 
 type EpubImportFlowResult =
   | { readonly status: 'cancelled' }
@@ -121,6 +127,8 @@ async function runEpubImport(): Promise<EpubImportFlowResult> {
       const importer = createEpubImporter({
         books: initialized.value.books,
         content: initialized.value.content,
+        detector: importFormatDetector,
+        metadata: epubMetadataExtractor,
         createId: randomUUID,
         now: () => new Date(),
       });

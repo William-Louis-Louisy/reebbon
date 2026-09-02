@@ -122,6 +122,33 @@ export class LocalBookContentStore implements BookContentStore {
     }
   }
 
+  public async stageBytes(
+    importId: string,
+    bytes: Uint8Array,
+    destinationName: string,
+  ): Promise<Result<string, FileStorageError>> {
+    if (
+      !isSafePathSegment(importId) ||
+      !isSafePathSegment(destinationName) ||
+      bytes.byteLength === 0
+    ) {
+      return err({ kind: 'invalid-storage-path', operation: 'stage-bytes' });
+    }
+
+    const stagingUri = joinUri(this.stagingRootUri, importId);
+    const destinationUri = joinUri(stagingUri, destinationName);
+    try {
+      if (!this.fileSystem.directoryExists(stagingUri)) {
+        return err({ kind: 'filesystem-failure', operation: 'stage-bytes' });
+      }
+
+      await this.fileSystem.writeFile(destinationUri, bytes);
+      return ok(destinationUri);
+    } catch (error: unknown) {
+      return err(mapFileSystemError(error, 'stage-bytes'));
+    }
+  }
+
   public async commitStagingArea(
     importId: string,
     bookId: BookId,
