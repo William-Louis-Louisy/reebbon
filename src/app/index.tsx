@@ -16,6 +16,7 @@ import {
   initializeLocalStorage,
   type LocalStorage,
 } from '@/infrastructure';
+import { getImportErrorAlert } from '@/presentation/importing/import-error-alert';
 import LibraryScreen, {
   type LibraryScreenState,
 } from '@/presentation/screens/library/library-screen';
@@ -75,6 +76,9 @@ export default function LibraryRoute() {
           return;
         }
         showImportFailure(result);
+      })
+      .catch(() => {
+        showImportFailure({ status: 'storage-failure' });
       })
       .finally(() => {
         setIsImporting(false);
@@ -185,23 +189,7 @@ function showImportFailure(result: Exclude<EpubImportFlowResult, { status: 'succ
       );
       return;
     case 'import-failure':
-      Alert.alert('Import impossible', importErrorMessage(result.error));
-  }
-}
-
-function importErrorMessage(error: ImportError): string {
-  switch (error.kind) {
-    case 'unsupported-format':
-      return 'Sélectionnez un fichier portant l’extension EPUB.';
-    case 'corrupted-source':
-      return 'Ce fichier EPUB semble endommagé.';
-    case 'permission-or-access-failure':
-      return 'Reebbon n’a pas pu lire le fichier sélectionné.';
-    case 'filesystem-failure':
-      return 'Le fichier n’a pas pu être copié dans le stockage local.';
-    case 'metadata-extraction-failure':
-      return 'Les informations de cet EPUB n’ont pas pu être lues.';
-    case 'persistence-failure':
-      return 'L’ouvrage n’a pas pu être ajouté à la bibliothèque.';
+      const alert = getImportErrorAlert(result.error);
+      Alert.alert(alert.title, alert.message);
   }
 }
