@@ -9,6 +9,7 @@ import {
   epubCoreThemes,
   getEpubFolio,
   parseEpubDisplayLocation,
+  parseEpubTableOfContents,
 } from '../../src/presentation/reading/epub/epub-reader-model';
 
 const coreLocation = {
@@ -83,4 +84,58 @@ test('Literata injection accepts only bundled font data and folios stay bounded'
     }),
     { current: 500, total: 500 },
   );
+});
+
+test('EPUB navigation is flattened into validated reader entries', () => {
+  assert.deepEqual(
+    parseEpubTableOfContents([
+      {
+        id: 'part-one',
+        href: 'Text/part-one.xhtml',
+        label: '  Partie   I  ',
+        subitems: [
+          {
+            id: 'chapter-one',
+            href: 'Text/chapter-one.xhtml#start',
+            label: 'Chapitre 1',
+            subitems: [],
+          },
+        ],
+      },
+    ]),
+    {
+      ok: true,
+      value: {
+        entries: [
+          { id: 'toc-0', label: 'Partie I', depth: 0 },
+          { id: 'toc-1', label: 'Chapitre 1', depth: 1 },
+        ],
+        targets: {
+          'toc-0': 'Text/part-one.xhtml',
+          'toc-1': 'Text/chapter-one.xhtml#start',
+        },
+      },
+    },
+  );
+});
+
+test('EPUB navigation ignores unsafe entries and rejects malformed roots', () => {
+  assert.deepEqual(
+    parseEpubTableOfContents([
+      { href: 'https://example.com/chapter', label: 'Remote', subitems: [] },
+      { href: 'javascript:alert(1)', label: 'Script', subitems: [] },
+      { href: 'Text/safe.xhtml', label: 'Safe', subitems: [] },
+    ]),
+    {
+      ok: true,
+      value: {
+        entries: [{ id: 'toc-0', label: 'Safe', depth: 0 }],
+        targets: { 'toc-0': 'Text/safe.xhtml' },
+      },
+    },
+  );
+  assert.deepEqual(parseEpubTableOfContents({ toc: [] }), {
+    ok: false,
+    error: { kind: 'invalid-epub-table-of-contents' },
+  });
 });

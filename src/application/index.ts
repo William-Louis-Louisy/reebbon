@@ -34,7 +34,13 @@ export {
   type ListLibraryBooks,
   type ListLibraryBooksDependencies,
 } from './library/list-library-books';
-export type { Reader, ReaderError, ReaderProgress } from './reader/reader';
+export type {
+  Reader,
+  ReaderError,
+  ReaderProgress,
+  ReaderTableOfContents,
+  ReaderTableOfContentsEntry,
+} from './reader/reader';
 export {
   createEpubReader,
   epubReaderCapabilities,

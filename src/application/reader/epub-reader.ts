@@ -1,6 +1,12 @@
 import { err, ok, type ReadingTheme, type Result } from '../../domain';
 
-import type { Reader, ReaderError, ReaderProgress } from './reader';
+import type {
+  Reader,
+  ReaderError,
+  ReaderProgress,
+  ReaderTableOfContents,
+  ReaderTableOfContentsEntry,
+} from './reader';
 
 export type EpubRenditionError = Extract<
   ReaderError,
@@ -18,6 +24,12 @@ export interface EpubRendition {
     initialCfi?: string,
   ): Promise<Result<void, EpubRenditionError>>;
   goTo(cfi: string): Promise<Result<void, EpubRenditionError>>;
+  getTableOfContents(): Promise<
+    Result<readonly ReaderTableOfContentsEntry[], EpubRenditionError>
+  >;
+  goToTableOfContentsEntry(
+    entryId: string,
+  ): Promise<Result<void, EpubRenditionError>>;
   getLocation(): Promise<Result<EpubRenditionLocation, EpubRenditionError>>;
   setTheme(theme: ReadingTheme): Promise<Result<void, EpubRenditionError>>;
   close(): Promise<Result<void, EpubRenditionError>>;
@@ -36,10 +48,38 @@ type ReaderState = 'closed' | 'opening' | 'open' | 'failed';
 
 export function createEpubReader(rendition: EpubRendition): Reader<'epub'> {
   let state: ReaderState = 'closed';
+  let tableOfContentsEntries: readonly ReaderTableOfContentsEntry[] = [];
+  const tableOfContents: ReaderTableOfContents = {
+    async getEntries() {
+      if (state !== 'open') {
+        return err({ kind: 'not-open' });
+      }
+      const entries = await callRendition(() => rendition.getTableOfContents());
+      if (entries.ok) {
+        tableOfContentsEntries = entries.value;
+      }
+      return entries;
+    },
+    async goToEntry(entryId) {
+      if (state !== 'open') {
+        return err({ kind: 'not-open' });
+      }
+      if (!tableOfContentsEntries.some((entry) => entry.id === entryId)) {
+        return err({
+          kind: 'invalid-table-of-contents-entry',
+          entryId,
+        });
+      }
+      return callRendition(() =>
+        rendition.goToTableOfContentsEntry(entryId),
+      );
+    },
+  };
 
   return {
     format: 'epub',
     capabilities: epubReaderCapabilities,
+    tableOfContents,
     async open(book, initialPosition) {
       if (book.format !== 'epub') {
         return err({
@@ -55,6 +95,7 @@ export function createEpubReader(rendition: EpubRendition): Reader<'epub'> {
         return err({ kind: 'invalid-position', position: initialPosition });
       }
 
+      tableOfContentsEntries = [];
       state = 'opening';
       const opened = await callRendition(() =>
         rendition.open(book.fileUri, initialPosition?.cfi),
@@ -97,6 +138,7 @@ export function createEpubReader(rendition: EpubRendition): Reader<'epub'> {
       }
       const closed = await callRendition(() => rendition.close());
       state = 'closed';
+      tableOfContentsEntries = [];
       return closed;
     },
   };
