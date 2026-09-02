@@ -36,6 +36,14 @@ class MemoryFileSystemGateway implements FileSystemGateway {
     return Promise.resolve();
   }
 
+  public writeFile(destinationUri: string, bytes: Uint8Array): Promise<void> {
+    if (bytes.byteLength === 0 || this.files.has(destinationUri)) {
+      throw new Error('Write failed.');
+    }
+    this.files.add(destinationUri);
+    return Promise.resolve();
+  }
+
   public moveDirectory(sourceUri: string, destinationUri: string): Promise<void> {
     if (!this.directories.delete(sourceUri) || this.directories.has(destinationUri)) {
       throw new Error('Move failed.');
@@ -71,6 +79,11 @@ test('book content moves from cache staging to persistent documents and can be r
   assert.equal((await store.initialize()).ok, true);
   const staging = await store.createStagingArea('import-1');
   const stagedFile = await store.stageFile('import-1', sourceUri, 'book.epub');
+  const stagedCover = await store.stageBytes(
+    'import-1',
+    new Uint8Array([0xff, 0xd8, 0xff]),
+    'cover.jpg',
+  );
   const committed = await store.commitStagingArea('import-1', 'book-1');
 
   assert.deepEqual(staging, {
@@ -84,6 +97,10 @@ test('book content moves from cache staging to persistent documents and can be r
     ok: true,
     value: 'file:///cache/reebbon/import-staging/import-1/book.epub',
   });
+  assert.deepEqual(stagedCover, {
+    ok: true,
+    value: 'file:///cache/reebbon/import-staging/import-1/cover.jpg',
+  });
   assert.deepEqual(committed, {
     ok: true,
     value: {
@@ -93,6 +110,10 @@ test('book content moves from cache staging to persistent documents and can be r
   });
   assert.equal(
     fileSystem.files.has('file:///documents/reebbon/books/book-1/book.epub'),
+    true,
+  );
+  assert.equal(
+    fileSystem.files.has('file:///documents/reebbon/books/book-1/cover.jpg'),
     true,
   );
   assert.equal(fileSystem.directories.has('file:///cache/reebbon/import-staging/import-1'), false);
@@ -126,6 +147,10 @@ test('book content store rejects unsafe segments and inaccessible sources', asyn
   assert.deepEqual(await store.removeBookFiles('book/escape'), {
     ok: false,
     error: { kind: 'invalid-storage-path', operation: 'remove-book-files' },
+  });
+  assert.deepEqual(await store.stageBytes('import-2', new Uint8Array(), 'cover.jpg'), {
+    ok: false,
+    error: { kind: 'invalid-storage-path', operation: 'stage-bytes' },
   });
 });
 

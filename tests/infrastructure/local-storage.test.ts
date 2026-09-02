@@ -29,6 +29,10 @@ class TestContentStore implements BookContentStore {
     throw new Error('Not used by this test.');
   }
 
+  public stageBytes(): never {
+    throw new Error('Not used by this test.');
+  }
+
   public commitStagingArea(): never {
     throw new Error('Not used by this test.');
   }

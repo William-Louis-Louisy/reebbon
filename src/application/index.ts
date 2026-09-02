@@ -1,6 +1,24 @@
 export type { ImportError, ImportFormat, ImportResult, ImportSource, ImportSourceFor, Importer } from './importing/importer';
 export { readerFormatForImportFormat } from './importing/importer';
 export type {
+  BookMetadataExtractor,
+  ExtractedBookCover,
+  ExtractedBookMetadata,
+  ExtractedCoverMediaType,
+  MetadataExtractionError,
+} from './importing/book-metadata-extractor';
+export { normalizeBookMetadataText } from './importing/book-metadata-extractor';
+export type {
+  ImportFileReader,
+  ImportFileReadError,
+} from './importing/import-file-reader';
+export {
+  createImportFormatDetector,
+  type FormatDetectionError,
+  type ImportFormatDetector,
+  type ImportFormatDetectorDependencies,
+} from './importing/import-format-detector';
+export type {
   FileImportSourcePicker,
   FileImportSourcePickerError,
   PickFileImportSourceOptions,
