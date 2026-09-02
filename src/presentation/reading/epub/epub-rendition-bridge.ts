@@ -2,6 +2,7 @@ import type {
   EpubRendition,
   EpubRenditionError,
   EpubRenditionLocation,
+  ReaderTableOfContentsEntry,
 } from '@/application';
 import { err, ok, type ReadingTheme, type Result } from '@/domain';
 
@@ -38,6 +39,8 @@ export class EpubRenditionBridge implements EpubRendition {
   private controls: EpubRenditionControls | undefined;
   private pendingOpen: PendingOpen | undefined;
   private timeout: ReturnType<typeof setTimeout> | undefined;
+  private tableOfContentsEntries: readonly ReaderTableOfContentsEntry[] = [];
+  private tableOfContentsTargets = new Map<string, string>();
 
   public constructor(
     private readonly openTimeoutMs: number = DEFAULT_OPEN_TIMEOUT_MS,
@@ -65,6 +68,7 @@ export class EpubRenditionBridge implements EpubRendition {
   ): Promise<Result<void, EpubRenditionError>> {
     this.settlePending(err({ kind: 'rendering-failure' }));
     this.clearTimeout();
+    this.clearTableOfContents();
     this.publish({
       status: 'opening',
       sessionId: this.snapshot.sessionId + 1,
@@ -83,6 +87,27 @@ export class EpubRenditionBridge implements EpubRendition {
 
   public goTo(cfi: string): Promise<Result<void, EpubRenditionError>> {
     return Promise.resolve(this.runControl((controls) => controls.goToLocation(cfi)));
+  }
+
+  public getTableOfContents(): Promise<
+    Result<readonly ReaderTableOfContentsEntry[], EpubRenditionError>
+  > {
+    return Promise.resolve(
+      this.snapshot.status === 'ready'
+        ? ok(this.tableOfContentsEntries)
+        : err({ kind: 'rendering-failure' }),
+    );
+  }
+
+  public goToTableOfContentsEntry(
+    entryId: string,
+  ): Promise<Result<void, EpubRenditionError>> {
+    const target = this.tableOfContentsTargets.get(entryId);
+    return Promise.resolve(
+      target === undefined
+        ? err({ kind: 'rendering-failure' })
+        : this.runControl((controls) => controls.goToLocation(target)),
+    );
   }
 
   public getLocation(): Promise<
@@ -106,6 +131,7 @@ export class EpubRenditionBridge implements EpubRendition {
   public close(): Promise<Result<void, EpubRenditionError>> {
     this.clearTimeout();
     this.settlePending(err({ kind: 'rendering-failure' }));
+    this.clearTableOfContents();
     this.publish({ status: 'idle', sessionId: this.snapshot.sessionId });
     return Promise.resolve(ok(undefined));
   }
@@ -139,6 +165,17 @@ export class EpubRenditionBridge implements EpubRendition {
       ...this.snapshot,
       location: normalizeDisplayLocation(location),
     });
+  }
+
+  public reportTableOfContents(
+    entries: readonly ReaderTableOfContentsEntry[],
+    targets: Readonly<Record<string, string>>,
+  ): void {
+    if (this.snapshot.status === 'idle') {
+      return;
+    }
+    this.tableOfContentsEntries = [...entries];
+    this.tableOfContentsTargets = new Map(Object.entries(targets));
   }
 
   public reportFailure(error: EpubRenditionError): void {
@@ -186,6 +223,11 @@ export class EpubRenditionBridge implements EpubRendition {
       clearTimeout(this.timeout);
       this.timeout = undefined;
     }
+  }
+
+  private clearTableOfContents(): void {
+    this.tableOfContentsEntries = [];
+    this.tableOfContentsTargets.clear();
   }
 }
 

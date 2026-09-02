@@ -1,5 +1,6 @@
 import type { Theme as CoreTheme } from '@epubjs-react-native/core';
 
+import type { ReaderTableOfContentsEntry } from '@/application';
 import { err, ok, type Result } from '@/domain';
 import {
   designSystemTokens,
@@ -10,9 +11,22 @@ import {
 import type { EpubDisplayLocation } from './epub-rendition-bridge';
 
 type ProgressUnit = 'ratio' | 'percentage';
+const MAXIMUM_TOC_DEPTH = 32;
+const MAXIMUM_TOC_ITEMS = 2_000;
+const MAXIMUM_TOC_LABEL_LENGTH = 300;
+const MAXIMUM_TOC_TARGET_LENGTH = 2_048;
 
 export interface InvalidEpubLocationError {
   readonly kind: 'invalid-epub-location';
+}
+
+export interface InvalidEpubTableOfContentsError {
+  readonly kind: 'invalid-epub-table-of-contents';
+}
+
+export interface ParsedEpubTableOfContents {
+  readonly entries: readonly ReaderTableOfContentsEntry[];
+  readonly targets: Readonly<Record<string, string>>;
 }
 
 export const epubCoreThemes: Record<ReadingThemeName, CoreTheme> = {
@@ -20,6 +34,60 @@ export const epubCoreThemes: Record<ReadingThemeName, CoreTheme> = {
   sepia: createCoreTheme('sepia'),
   night: createCoreTheme('night'),
 };
+
+export function parseEpubTableOfContents(
+  value: unknown,
+): Result<ParsedEpubTableOfContents, InvalidEpubTableOfContentsError> {
+  if (!Array.isArray(value)) {
+    return err({ kind: 'invalid-epub-table-of-contents' });
+  }
+
+  const entries: ReaderTableOfContentsEntry[] = [];
+  const targets: Record<string, string> = {};
+  const visited = new WeakSet<object>();
+  let inspectedItems = 0;
+
+  const visit = (items: readonly unknown[], depth: number): boolean => {
+    if (depth > MAXIMUM_TOC_DEPTH) {
+      return false;
+    }
+    for (const candidate of items) {
+      inspectedItems += 1;
+      if (inspectedItems > MAXIMUM_TOC_ITEMS || !isRecord(candidate)) {
+        if (inspectedItems > MAXIMUM_TOC_ITEMS) {
+          return false;
+        }
+        continue;
+      }
+      if (visited.has(candidate)) {
+        return false;
+      }
+      visited.add(candidate);
+
+      const label = normalizeTocLabel(candidate.label);
+      const target = normalizeTocTarget(candidate.href);
+      let childDepth = depth;
+      if (label !== undefined && target !== undefined) {
+        const id = `toc-${entries.length}`;
+        entries.push({ id, label, depth });
+        targets[id] = target;
+        childDepth += 1;
+      }
+
+      const subitems = Array.isArray(candidate.subitems)
+        ? candidate.subitems
+        : [];
+      if (!visit(subitems, childDepth)) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  return visit(value, 0)
+    ? ok({ entries, targets })
+    : err({ kind: 'invalid-epub-table-of-contents' });
+}
 
 export function parseEpubDisplayLocation(
   value: unknown,
@@ -146,6 +214,36 @@ function getProgress(
     : 0;
 }
 
+function normalizeTocLabel(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const label = value.replace(/\s+/g, ' ').trim();
+  return label.length > 0 && label.length <= MAXIMUM_TOC_LABEL_LENGTH
+    ? label
+    : undefined;
+}
+
+function normalizeTocTarget(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const target = value.trim();
+  if (
+    target.length === 0 ||
+    target.length > MAXIMUM_TOC_TARGET_LENGTH ||
+    target.includes('\u0000') ||
+    target.startsWith('//') ||
+    target.includes('\\')
+  ) {
+    return undefined;
+  }
+  if (/^epubcfi\(.+\)$/.test(target)) {
+    return target;
+  }
+  return /^[a-z][a-z0-9+.-]*:/i.test(target) ? undefined : target;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

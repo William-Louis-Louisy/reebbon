@@ -61,6 +61,45 @@ test('rendition bridge delegates page, CFI, and theme commands only when ready',
   ]);
 });
 
+test('rendition bridge keeps EPUB href targets private behind reader TOC entries', async () => {
+  const bridge = new EpubRenditionBridge();
+  const calls: string[] = [];
+  bridge.attachControls({
+    goToLocation: (target) => calls.push(`go:${target}`),
+    goPrevious() {},
+    goNext() {},
+    changeTheme() {},
+  });
+
+  const opening = bridge.open('file:///books/book.epub');
+  bridge.reportTableOfContents(
+    [
+      { id: 'toc-0', label: 'Partie I', depth: 0 },
+      { id: 'toc-1', label: 'Chapitre 1', depth: 1 },
+    ],
+    {
+      'toc-0': 'Text/part-one.xhtml',
+      'toc-1': 'Text/chapter-one.xhtml#start',
+    },
+  );
+  bridge.reportReady(location);
+  await opening;
+
+  assert.deepEqual(await bridge.getTableOfContents(), ok([
+    { id: 'toc-0', label: 'Partie I', depth: 0 },
+    { id: 'toc-1', label: 'Chapitre 1', depth: 1 },
+  ]));
+  assert.deepEqual(
+    await bridge.goToTableOfContentsEntry('toc-1'),
+    ok(undefined),
+  );
+  assert.deepEqual(
+    await bridge.goToTableOfContentsEntry('unknown'),
+    err({ kind: 'rendering-failure' }),
+  );
+  assert.deepEqual(calls, ['go:Text/chapter-one.xhtml#start']);
+});
+
 test('malformed content times out as a typed rendering failure without throwing', async () => {
   const bridge = new EpubRenditionBridge(5);
 

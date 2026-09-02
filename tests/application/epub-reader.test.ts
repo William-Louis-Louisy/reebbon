@@ -41,6 +41,17 @@ function createRendition() {
       calls.push('get-location');
       return Promise.resolve(ok(location));
     },
+    getTableOfContents() {
+      calls.push('get-table-of-contents');
+      return Promise.resolve(ok([
+        { id: 'toc-0', label: 'Partie I', depth: 0 },
+        { id: 'toc-1', label: 'Chapitre 1', depth: 1 },
+      ]));
+    },
+    goToTableOfContentsEntry(entryId) {
+      calls.push(`go-to-table-of-contents:${entryId}`);
+      return Promise.resolve(ok(undefined));
+    },
     setTheme(theme) {
       calls.push(`theme:${theme}`);
       return Promise.resolve(ok(undefined));
@@ -76,6 +87,37 @@ test('EPUB reader implements the common lifecycle and reports typed CFI progress
     'close',
   ]);
   assert.deepEqual(reader.capabilities, epubReaderCapabilities);
+});
+
+test('EPUB table of contents is exposed and navigated through the Reader capability', async () => {
+  const harness = createRendition();
+  const reader = createEpubReader(harness.rendition);
+  const tableOfContents = reader.tableOfContents;
+
+  assert.notEqual(tableOfContents, undefined);
+  if (tableOfContents === undefined) {
+    return;
+  }
+
+  assert.deepEqual(await tableOfContents.getEntries(), err({ kind: 'not-open' }));
+  await reader.open(book);
+  assert.deepEqual(await tableOfContents.getEntries(), ok([
+    { id: 'toc-0', label: 'Partie I', depth: 0 },
+    { id: 'toc-1', label: 'Chapitre 1', depth: 1 },
+  ]));
+  assert.deepEqual(
+    await tableOfContents.goToEntry('unknown'),
+    err({
+      kind: 'invalid-table-of-contents-entry',
+      entryId: 'unknown',
+    }),
+  );
+  assert.deepEqual(await tableOfContents.goToEntry('toc-1'), ok(undefined));
+  assert.deepEqual(harness.calls, [
+    `open:${book.fileUri}:start`,
+    'get-table-of-contents',
+    'go-to-table-of-contents:toc-1',
+  ]);
 });
 
 test('EPUB reader rejects invalid content and positions before touching the rendition', async () => {

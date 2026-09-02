@@ -14,6 +14,19 @@ export interface ReaderProgress<F extends BookFormat> {
   readonly completionRatio: number;
 }
 
+export interface ReaderTableOfContentsEntry {
+  readonly id: string;
+  readonly label: string;
+  readonly depth: number;
+}
+
+export interface ReaderTableOfContents {
+  getEntries(): Promise<
+    Result<readonly ReaderTableOfContentsEntry[], ReaderError>
+  >;
+  goToEntry(entryId: string): Promise<Result<void, ReaderError>>;
+}
+
 export type ReaderError =
   | { readonly kind: 'not-open' }
   | {
@@ -22,12 +35,17 @@ export type ReaderError =
       readonly actual: BookFormat;
     }
   | { readonly kind: 'invalid-position'; readonly position: ReaderPosition }
+  | {
+      readonly kind: 'invalid-table-of-contents-entry';
+      readonly entryId: string;
+    }
   | { readonly kind: 'content-access-failure' }
   | { readonly kind: 'rendering-failure' };
 
 export interface Reader<F extends BookFormat = BookFormat> {
   readonly format: F;
   readonly capabilities: ReaderCapabilities;
+  readonly tableOfContents?: ReaderTableOfContents;
 
   open(
     book: Book<F>,
