@@ -4,13 +4,13 @@
 - Date : 2026-09-01
 - Issue : #6
 - Backlog : IMP-01
-- Revision : 2026-09-02, Issue #7, IMP-04
+- Revision : 2026-09-02, Issues #7 et #8, IMP-04 et IMP-05
 
 ## Contexte
 
 Le premier walking skeleton produit doit permettre de choisir un EPUB, de le copier dans le sandbox local, de persister l'ouvrage dans SQLite et de rafraichir immediatement la bibliotheque. Le FileSystem et SQLite ne partagent pas de transaction atomique. L'import doit donc coordonner les ports fixes par les ADR 0001 et 0002 sans coupler la presentation aux APIs Expo.
 
-La revision IMP-04 ajoute la detection generique et l'extraction OPF sans modifier les contrats de domaine ni coupler le pipeline aux APIs Expo. La gestion exhaustive des messages et cas d'erreur produit reste dans IMP-05 (#8).
+La revision IMP-04 ajoute la detection generique et l'extraction OPF sans modifier les contrats de domaine ni coupler le pipeline aux APIs Expo. La revision IMP-05 formalise la presentation exhaustive des erreurs typees et valide les compensations sur l'etat reel du FileSystem et de SQLite.
 
 ## Decision
 
@@ -26,6 +26,7 @@ La revision IMP-04 ajoute la detection generique et l'extraction OPF sans modifi
 - Le nom de fichier reste le fallback de titre lorsque l'OPF ne fournit pas de titre valide.
 - `expo-crypto` fournit des UUID v4 injectables pour les identifiants de livre et d'import.
 - En cas d'echec, une compensation supprime toute ligne potentiellement ecrite, le contenu persistant potentiellement deplace et le staging. Les erreurs restent discriminees par les contrats applicatifs.
+- La presentation transforme exhaustivement chaque `ImportError` en un titre et un message explicites. Le point d'entree React conserve un dernier garde-fou contre une rejection inattendue afin qu'un echec d'import ne devienne pas une rejection non geree.
 - Apres un succes, la route relit la bibliotheque via le cas d'usage existant avant de fermer le stockage. Aucun contenu ne quitte l'appareil.
 
 ## Consequences
@@ -38,4 +39,4 @@ Les futurs imports PDF et Images doivent implementer les memes ports plutot que 
 
 L'archive EPUB compressee est lue en memoire une fois par import, puis seules les entrees de metadonnees et de couverture sont decompressees avec des limites explicites. Cette approche evite d'extraire tout l'ouvrage et reste compatible Expo, mais les imports EPUB tres volumineux devront etre mesures sur appareils avant d'envisager un lecteur ZIP aleatoire ou streaming.
 
-IMP-05 renforcera les diagnostics utilisateur des archives corrompues et formats non supportes. IMP-06 reste responsable de toute animation du Ruban pendant l'import.
+Les erreurs de nettoyage sont elles-memes signalees explicitement, car une panne du stockage peut empecher de garantir la compensation malgre les tentatives de suppression. IMP-06 reste responsable de toute animation du Ruban pendant l'import.
