@@ -3,6 +3,8 @@ import '@/global.css';
 import { ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { getNavigationTheme } from '@/shared/theme';
 import { useOfflineFonts } from '@/shared/theme/fonts';
@@ -32,9 +34,17 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={getNavigationTheme(colorScheme)}>
-      <BrandSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <ThemeProvider value={getNavigationTheme(colorScheme)}>
+        <BrandSplashOverlay />
+        <AppTabs />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});

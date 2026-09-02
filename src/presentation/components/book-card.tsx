@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { memo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { LibraryBookItem } from '@/application';
 import type { BookFormat } from '@/domain';
@@ -18,10 +18,11 @@ const formatLabels: Record<BookFormat, string> = {
 
 export interface BookCardProps {
   readonly item: LibraryBookItem;
+  readonly onPress: () => void;
   readonly width: number;
 }
 
-export const BookCard = memo(function BookCard({ item, width }: BookCardProps) {
+export const BookCard = memo(function BookCard({ item, onPress, width }: BookCardProps) {
   const { book } = item;
   const progress = normalizeProgress(item.progress);
   const percentage = Math.round(progress * 100);
@@ -29,7 +30,11 @@ export const BookCard = memo(function BookCard({ item, width }: BookCardProps) {
   const accessibilityLabel = `${book.title}, ${author}, ${percentage} pour cent lu`;
 
   return (
-    <View accessible accessibilityLabel={accessibilityLabel} style={{ width }}>
+    <Pressable
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [{ width }, pressed && styles.pressed]}>
       <View style={styles.coverShadow}>
         <View style={styles.cover}>
           {book.coverUri === undefined ? (
@@ -61,7 +66,7 @@ export const BookCard = memo(function BookCard({ item, width }: BookCardProps) {
           {formatLabels[book.format]} · {percentage}%
         </AppText>
       </View>
-    </View>
+    </Pressable>
   );
 });
 
@@ -99,5 +104,9 @@ const styles = StyleSheet.create({
   },
   title: {
     minHeight: designSystemTokens.typography.roles.label.lineHeight * 2,
+  },
+  pressed: {
+    opacity: designSystemTokens.interaction.pressedOpacity,
+    transform: [{ scale: designSystemTokens.interaction.pressedScale }],
   },
 });

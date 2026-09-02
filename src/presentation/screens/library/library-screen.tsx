@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { LibraryBookItem } from '@/application';
+import type { Book } from '@/domain';
 import { designSystemTokens } from '@/shared/theme';
 
 import { AppText } from '../../components/app-text';
@@ -26,12 +27,14 @@ export interface LibraryScreenProps {
   readonly state: LibraryScreenState;
   readonly isImporting: boolean;
   readonly onImportPress: () => void;
+  readonly onBookPress: (book: Book) => void;
   readonly onRetryPress: () => void;
 }
 
 export default function LibraryScreen({
   state,
   isImporting,
+  onBookPress,
   onImportPress,
   onRetryPress,
 }: LibraryScreenProps) {
@@ -74,7 +77,11 @@ export default function LibraryScreen({
           ListHeaderComponentStyle={styles.headerSpacing}
           numColumns={metrics.columns}
           renderItem={({ item }) => (
-            <BookCard item={item} width={metrics.itemWidth} />
+            <BookCard
+              item={item}
+              onPress={() => onBookPress(item.book)}
+              width={metrics.itemWidth}
+            />
           )}
           showsVerticalScrollIndicator={false}
           style={[styles.list, { maxWidth: metrics.contentWidth }]}

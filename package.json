@@ -3,12 +3,14 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@epubjs-react-native/core": "^1.4.7",
     "@expo-google-fonts/fraunces": "^0.4.1",
     "@expo-google-fonts/ibm-plex-mono": "^0.4.1",
     "@expo-google-fonts/literata": "^0.4.3",
     "@expo-google-fonts/public-sans": "^0.4.2",
     "@expo/ui": "~57.0.14",
     "expo": "~57.0.18",
+    "expo-asset": "~57.0.16",
     "expo-constants": "~57.0.16",
     "expo-crypto": "~57.0.2",
     "expo-dev-client": "~57.0.16",
@@ -37,6 +39,7 @@
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.0",
+    "react-native-webview": "13.16.1",
     "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
@@ -44,10 +47,13 @@
     "@types/react": "~19.2.2",
     "eslint": "^9.39.5",
     "eslint-config-expo": "^57.0.2",
+    "patch-package": "^8.0.1",
     "tsx": "^4.23.12",
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "postinstall": "patch-package",
+    "reader:fixtures": "tsx scripts/generate-epub-reader-fixtures.ts",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",

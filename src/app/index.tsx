@@ -1,6 +1,6 @@
 import { randomUUID } from 'expo-crypto';
 import { startTransition, useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Modal } from 'react-native';
 
 import {
   createEpubImporter,
@@ -9,14 +9,20 @@ import {
   type ImportError,
   type LibraryBookItem,
 } from '@/application';
+import type { Book } from '@/domain';
 import {
+  clearEpubRendererCache,
   EpubMetadataExtractor,
   ExpoFileImportSourcePicker,
   ExpoImportFileReader,
   initializeLocalStorage,
+  getExpoEpubRendererFileSystem,
+  loadBundledLiterataDataUri,
+  prepareEpubForRendering,
   type LocalStorage,
 } from '@/infrastructure';
 import { getImportErrorAlert } from '@/presentation/importing/import-error-alert';
+import EpubReaderScreen from '@/presentation/reading/epub/epub-reader-screen';
 import LibraryScreen, {
   type LibraryScreenState,
 } from '@/presentation/screens/library/library-screen';
@@ -41,6 +47,7 @@ export default function LibraryRoute() {
   const [reloadKey, setReloadKey] = useState(0);
   const [state, setState] = useState<LibraryScreenState>(loadingState);
   const [isImporting, setIsImporting] = useState(false);
+  const [readerBook, setReaderBook] = useState<Book<'epub'> | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -85,14 +92,48 @@ export default function LibraryRoute() {
       });
   };
 
+  const openBook = (book: Book) => {
+    if (isEpubBook(book)) {
+      setReaderBook(book);
+      return;
+    }
+    Alert.alert(
+      'Lecture indisponible',
+      'Le moteur de lecture de ce format n’est pas encore disponible.',
+    );
+  };
+
   return (
-    <LibraryScreen
-      isImporting={isImporting}
-      onImportPress={importEpub}
-      onRetryPress={retry}
-      state={state}
-    />
+    <>
+      <LibraryScreen
+        isImporting={isImporting}
+        onBookPress={openBook}
+        onImportPress={importEpub}
+        onRetryPress={retry}
+        state={state}
+      />
+      <Modal
+        animationType="none"
+        onRequestClose={() => setReaderBook(null)}
+        presentationStyle="fullScreen"
+        visible={readerBook !== null}>
+        {readerBook === null ? null : (
+          <EpubReaderScreen
+            book={readerBook}
+            clearRendererCache={clearEpubRendererCache}
+            fileSystem={getExpoEpubRendererFileSystem}
+            loadReadingFont={loadBundledLiterataDataUri}
+            onClose={() => setReaderBook(null)}
+            prepareSource={prepareEpubForRendering}
+          />
+        )}
+      </Modal>
+    </>
   );
+}
+
+function isEpubBook(book: Book): book is Book<'epub'> {
+  return book.format === 'epub';
 }
 
 async function loadLibrary(): Promise<LibraryScreenState> {
