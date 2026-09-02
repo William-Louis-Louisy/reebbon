@@ -1,0 +1,150 @@
+diff --git a/node_modules/@epubjs-react-native/core/lib/commonjs/Reader.js b/node_modules/@epubjs-react-native/core/lib/commonjs/Reader.js
+index f65d1fe..12c441a 100644
+--- a/node_modules/@epubjs-react-native/core/lib/commonjs/Reader.js
++++ b/node_modules/@epubjs-react-native/core/lib/commonjs/Reader.js
+@@ -79,7 +79,7 @@ function Reader({
+       } catch (e) {
+         throw new Error('failed to write epubjs js file');
+       }
+-      setAllowedUris(`${jszipFileUri},${epubjsFileUri}`);
++      setAllowedUris(documentDirectory);
+       if (src) {
+         const sourceType = (0, _getSourceType.getSourceType)(src);
+         const isExternalSource = (0, _isURL.isURL)(src);
+@@ -89,7 +89,7 @@ function Reader({
+         }
+         if (!isExternalSource) {
+           if (isSrcInFs) {
+-            setAllowedUris(`${src}${jszipFileUri},${epubjsFileUri}`);
++            setAllowedUris(documentDirectory);
+           }
+           if (sourceType === _sourceType.SourceType.BASE64) {
+             setTemplate(injectWebViewVariables({
+@@ -160,7 +160,7 @@ function Reader({
+               uri: bookFileUri
+             } = await downloadFile(src, sourceName);
+             if (!bookFileUri) throw new Error("Couldn't download book");
+-            setAllowedUris(`${bookFileUri},${jszipFileUri},${epubjsFileUri}`);
++            setAllowedUris(documentDirectory);
+             setTemplate(injectWebViewVariables({
+               jszip: jszipFileUri,
+               epubjs: epubjsFileUri,
+diff --git a/node_modules/@epubjs-react-native/core/lib/commonjs/View.js b/node_modules/@epubjs-react-native/core/lib/commonjs/View.js
+index 0de0fef..2e83105 100644
+--- a/node_modules/@epubjs-react-native/core/lib/commonjs/View.js
++++ b/node_modules/@epubjs-react-native/core/lib/commonjs/View.js
+@@ -351,12 +351,15 @@ function View({
+     });
+   };
+   const handleOnShouldStartLoadWithRequest = request => {
++    if (/^(https?:|mailto:|tel:)/i.test(request.url)) {
++      if (onPressExternalLink) {
++        onPressExternalLink(request.url);
++      }
++      return false;
++    }
+     if (!isRendering && request.mainDocumentURL && request.url !== request.mainDocumentURL) {
+       goToLocation(request.url.replace(request.mainDocumentURL, ''));
+     }
+-    if ((request.url.includes('mailto:') || request.url.includes('tel:')) && onPressExternalLink) {
+-      onPressExternalLink(request.url);
+-    }
+     return true;
+   };
+   (0, _react.useEffect)(() => {
+@@ -431,7 +434,7 @@ function View({
+     allowUniversalAccessFromFileURLs: true,
+     allowFileAccessFromFileURLs: true,
+     allowFileAccess: true,
+-    javaScriptCanOpenWindowsAutomatically: true,
++    javaScriptCanOpenWindowsAutomatically: false,
+     onOpenWindow: event => {
+       event.preventDefault();
+       if (onPressExternalLink) {
+diff --git a/node_modules/@epubjs-react-native/core/lib/commonjs/template.js b/node_modules/@epubjs-react-native/core/lib/commonjs/template.js
+index 889bb46..c0d8bd9 100644
+--- a/node_modules/@epubjs-react-native/core/lib/commonjs/template.js
++++ b/node_modules/@epubjs-react-native/core/lib/commonjs/template.js
+@@ -246,6 +246,6 @@ var _default = exports.default = `
+         .catch(function (err) {
+           reactNativeWebview.postMessage(JSON.stringify({
+           type: "onDisplayError",
+-          reason: reason
++          reason: String(err)
+         }));
+       });
+diff --git a/node_modules/@epubjs-react-native/core/lib/module/Reader.js b/node_modules/@epubjs-react-native/core/lib/module/Reader.js
+index 2350836..cd1037a 100644
+--- a/node_modules/@epubjs-react-native/core/lib/module/Reader.js
++++ b/node_modules/@epubjs-react-native/core/lib/module/Reader.js
+@@ -70,7 +70,7 @@ export function Reader({
+       } catch (e) {
+         throw new Error('failed to write epubjs js file');
+       }
+-      setAllowedUris(`${jszipFileUri},${epubjsFileUri}`);
++      setAllowedUris(documentDirectory);
+       if (src) {
+         const sourceType = getSourceType(src);
+         const isExternalSource = isURL(src);
+@@ -80,7 +80,7 @@ export function Reader({
+         }
+         if (!isExternalSource) {
+           if (isSrcInFs) {
+-            setAllowedUris(`${src}${jszipFileUri},${epubjsFileUri}`);
++            setAllowedUris(documentDirectory);
+           }
+           if (sourceType === SourceType.BASE64) {
+             setTemplate(injectWebViewVariables({
+@@ -151,7 +151,7 @@ export function Reader({
+               uri: bookFileUri
+             } = await downloadFile(src, sourceName);
+             if (!bookFileUri) throw new Error("Couldn't download book");
+-            setAllowedUris(`${bookFileUri},${jszipFileUri},${epubjsFileUri}`);
++            setAllowedUris(documentDirectory);
+             setTemplate(injectWebViewVariables({
+               jszip: jszipFileUri,
+               epubjs: epubjsFileUri,
+diff --git a/node_modules/@epubjs-react-native/core/lib/module/View.js b/node_modules/@epubjs-react-native/core/lib/module/View.js
+index 63f3c24..ac54782 100644
+--- a/node_modules/@epubjs-react-native/core/lib/module/View.js
++++ b/node_modules/@epubjs-react-native/core/lib/module/View.js
+@@ -342,12 +342,15 @@ export function View({
+     });
+   };
+   const handleOnShouldStartLoadWithRequest = request => {
++    if (/^(https?:|mailto:|tel:)/i.test(request.url)) {
++      if (onPressExternalLink) {
++        onPressExternalLink(request.url);
++      }
++      return false;
++    }
+     if (!isRendering && request.mainDocumentURL && request.url !== request.mainDocumentURL) {
+       goToLocation(request.url.replace(request.mainDocumentURL, ''));
+     }
+-    if ((request.url.includes('mailto:') || request.url.includes('tel:')) && onPressExternalLink) {
+-      onPressExternalLink(request.url);
+-    }
+     return true;
+   };
+   useEffect(() => {
+@@ -422,7 +425,7 @@ export function View({
+     allowUniversalAccessFromFileURLs: true,
+     allowFileAccessFromFileURLs: true,
+     allowFileAccess: true,
+-    javaScriptCanOpenWindowsAutomatically: true,
++    javaScriptCanOpenWindowsAutomatically: false,
+     onOpenWindow: event => {
+       event.preventDefault();
+       if (onPressExternalLink) {
+diff --git a/node_modules/@epubjs-react-native/core/lib/module/template.js b/node_modules/@epubjs-react-native/core/lib/module/template.js
+index dadb7a6..4f80864 100644
+--- a/node_modules/@epubjs-react-native/core/lib/module/template.js
++++ b/node_modules/@epubjs-react-native/core/lib/module/template.js
+@@ -238,6 +238,6 @@ export default `
+         .catch(function (err) {
+           reactNativeWebview.postMessage(JSON.stringify({
+           type: "onDisplayError",
+-          reason: reason
++          reason: String(err)
+         }));
+       });

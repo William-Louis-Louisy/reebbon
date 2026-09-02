@@ -35,6 +35,13 @@ export {
   type ListLibraryBooksDependencies,
 } from './library/list-library-books';
 export type { Reader, ReaderError, ReaderProgress } from './reader/reader';
+export {
+  createEpubReader,
+  epubReaderCapabilities,
+  type EpubRendition,
+  type EpubRenditionError,
+  type EpubRenditionLocation,
+} from './reader/epub-reader';
 export type { BookmarkRepository } from './reading/bookmark-repository';
 export type { ReadingProgressRepository } from './reading/reading-progress-repository';
 export type { RepositoryError } from './shared/repository-error';
