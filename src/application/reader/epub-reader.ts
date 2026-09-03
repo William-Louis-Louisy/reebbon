@@ -1,8 +1,10 @@
 import {
   err,
+  isReaderFontSize,
   isValidEpubCfi,
   ok,
   type ReadingTheme,
+  type ReaderFontSize,
   type Result,
 } from '../../domain';
 
@@ -38,6 +40,9 @@ export interface EpubRendition {
   ): Promise<Result<void, EpubRenditionError>>;
   getLocation(): Promise<Result<EpubRenditionLocation, EpubRenditionError>>;
   setTheme(theme: ReadingTheme): Promise<Result<void, EpubRenditionError>>;
+  setFontSize(
+    fontSize: ReaderFontSize,
+  ): Promise<Result<void, EpubRenditionError>>;
   close(): Promise<Result<void, EpubRenditionError>>;
 }
 
@@ -85,6 +90,17 @@ export function createEpubReader(rendition: EpubRendition): Reader<'epub'> {
   return {
     format: 'epub',
     capabilities: epubReaderCapabilities,
+    fontCustomization: {
+      async setFontSize(fontSize) {
+        if (state !== 'open') {
+          return err({ kind: 'not-open' });
+        }
+        if (!isReaderFontSize(fontSize)) {
+          return err({ kind: 'invalid-font-size', fontSize });
+        }
+        return callRendition(() => rendition.setFontSize(fontSize));
+      },
+    },
     tableOfContents,
     async open(book, initialPosition) {
       if (book.format !== 'epub') {

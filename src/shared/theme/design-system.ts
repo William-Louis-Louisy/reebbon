@@ -191,6 +191,11 @@ export const designSystemTokens = {
     readerChrome: {
       mutedOpacity: 0.7,
     },
+    readingFontSizeControl: {
+      buttonSize: 28,
+      touchTargetSize: 44,
+      valueMinWidth: 32,
+    },
     readingThemeSelector: {
       controlSize: 32,
       dotSize: 18,

@@ -1,4 +1,5 @@
 import type {
+  ApplicationPreferenceRepository,
   BookContentStore,
   BookRepository,
   BookmarkRepository,
@@ -8,6 +9,7 @@ import type {
 import { err, ok, type Result } from '../domain';
 
 import { migrateDatabase } from './database/migrations';
+import { SqliteApplicationPreferenceRepository } from './database/repositories/sqlite-application-preference-repository';
 import { SqliteBookmarkRepository } from './database/repositories/sqlite-bookmark-repository';
 import { SqliteBookRepository } from './database/repositories/sqlite-book-repository';
 import { SqliteReadingProgressRepository } from './database/repositories/sqlite-reading-progress-repository';
@@ -21,6 +23,7 @@ export interface LocalStorage {
   readonly books: BookRepository;
   readonly readingProgress: ReadingProgressRepository;
   readonly bookmarks: BookmarkRepository;
+  readonly preferences: ApplicationPreferenceRepository;
   readonly content: BookContentStore;
   close(): Promise<void>;
 }
@@ -74,6 +77,7 @@ export async function initializeLocalStorageWithDependencies(
     books: new SqliteBookRepository(connection),
     readingProgress: new SqliteReadingProgressRepository(connection),
     bookmarks: new SqliteBookmarkRepository(connection),
+    preferences: new SqliteApplicationPreferenceRepository(connection),
     content,
     close: () => connection.close(),
   });

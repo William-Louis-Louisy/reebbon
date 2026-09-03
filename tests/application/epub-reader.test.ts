@@ -8,7 +8,14 @@ import {
   epubReaderCapabilities,
   type EpubRendition,
 } from '../../src/application';
-import { err, ok, type Book } from '../../src/domain';
+import {
+  defaultReaderFontSize,
+  err,
+  ok,
+  parseReaderFontSize,
+  type Book,
+  type ReaderFontSize,
+} from '../../src/domain';
 
 const book: Book<'epub'> = {
   id: 'book-1',
@@ -56,6 +63,10 @@ function createRendition() {
       calls.push(`theme:${theme}`);
       return Promise.resolve(ok(undefined));
     },
+    setFontSize(fontSize) {
+      calls.push(`font-size:${fontSize}`);
+      return Promise.resolve(ok(undefined));
+    },
     close() {
       calls.push('close');
       return Promise.resolve(ok(undefined));
@@ -76,6 +87,17 @@ test('EPUB reader implements the common lifecycle and reports typed CFI progress
   assert.deepEqual(await reader.setTheme('paper'), ok(undefined));
   assert.deepEqual(await reader.setTheme('sepia'), ok(undefined));
   assert.deepEqual(await reader.setTheme('night'), ok(undefined));
+  const customization = reader.fontCustomization;
+  assert.notEqual(customization, undefined);
+  if (customization === undefined) {
+    return;
+  }
+  const fontSize = parseReaderFontSize(20);
+  assert.equal(fontSize.ok, true);
+  if (!fontSize.ok) {
+    return;
+  }
+  assert.deepEqual(await customization.setFontSize(fontSize.value), ok(undefined));
   assert.deepEqual(await reader.getProgress(), {
     ok: true,
     value: { position: target, completionRatio: 1 },
@@ -87,6 +109,7 @@ test('EPUB reader implements the common lifecycle and reports typed CFI progress
     'theme:paper',
     'theme:sepia',
     'theme:night',
+    'font-size:20',
     'get-location',
     'close',
   ]);
@@ -140,7 +163,21 @@ test('EPUB reader rejects invalid content and positions before touching the rend
     }),
   );
   assert.deepEqual(await reader.getProgress(), err({ kind: 'not-open' }));
-  assert.deepEqual(harness.calls, []);
+  const customization = reader.fontCustomization;
+  assert.notEqual(customization, undefined);
+  if (customization === undefined) {
+    return;
+  }
+  assert.deepEqual(
+    await customization.setFontSize(defaultReaderFontSize),
+    err({ kind: 'not-open' }),
+  );
+  await reader.open(book);
+  assert.deepEqual(
+    await customization.setFontSize(48 as ReaderFontSize),
+    err({ kind: 'invalid-font-size', fontSize: 48 }),
+  );
+  assert.deepEqual(harness.calls, [`open:${book.fileUri}:start`]);
 });
 
 test('EPUB reader converts unexpected renderer failures into typed errors', async () => {

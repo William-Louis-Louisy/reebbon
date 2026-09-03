@@ -3,10 +3,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import {
+  defaultReaderFontSize,
+  parseReaderFontSize,
+} from '../../src/domain';
 import { designSystemTokens, readingThemes } from '../../src/shared/theme';
 import {
   createLiterataInjection,
   epubCoreThemes,
+  formatEpubFontSize,
   getEpubFolio,
   parseEpubDisplayLocation,
   parseEpubTableOfContents,
@@ -74,6 +79,15 @@ test('reader themes preserve semantic surfaces and contrast for EPUB content', (
     epubCoreThemes.night.a?.color,
     readingThemes.night.accent,
   );
+});
+
+test('EPUB font sizes use the validated pixel scale expected by epub.js', () => {
+  assert.equal(formatEpubFontSize(defaultReaderFontSize), '17px');
+  const maximum = parseReaderFontSize(24);
+  assert.equal(maximum.ok, true);
+  if (maximum.ok) {
+    assert.equal(formatEpubFontSize(maximum.value), '24px');
+  }
 });
 
 test('Literata injection accepts only bundled font data and folios stay bounded', () => {

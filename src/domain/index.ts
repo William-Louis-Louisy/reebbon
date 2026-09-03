@@ -2,6 +2,15 @@ export type { Book, BookFormat, BookId } from './books/book';
 export type { Bookmark, BookmarkId, BookmarkRecord } from './reading/bookmark';
 export type { ReaderCapabilities, ReadingDirection } from './reading/reader-capabilities';
 export {
+  defaultReaderFontSize,
+  isReaderFontSize,
+  parseReaderFontSize,
+  readerFontSizeRange,
+  stepReaderFontSize,
+  type InvalidReaderFontSizeError,
+  type ReaderFontSize,
+} from './reading/reader-font-size';
+export {
   isValidEpubCfi,
   parseReaderPosition,
   type EpubReaderPosition,

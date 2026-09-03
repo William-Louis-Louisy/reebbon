@@ -1,4 +1,5 @@
 export { initializeLocalStorage } from './local-storage';
+export { SqliteApplicationPreferenceRepository } from './database/repositories/sqlite-application-preference-repository';
 export { ExpoFileImportSourcePicker } from './importing/expo-file-import-source-picker';
 export { EpubMetadataExtractor } from './importing/epub-metadata-extractor';
 export { ExpoImportFileReader } from './importing/expo-import-file-reader';

@@ -4,15 +4,22 @@ import { Alert, Modal } from 'react-native';
 
 import {
   createEpubImporter,
+  createEpubFontSizePreferenceService,
   createImportFormatDetector,
   createListLibraryBooks,
   createReadingProgressService,
   type ImportError,
+  type EpubFontSizePreferenceService,
   type LibraryBookItem,
   type ReaderProgress,
   type ReadingProgressService,
 } from '@/application';
-import type { Book, EpubReaderPosition } from '@/domain';
+import {
+  defaultReaderFontSize,
+  type Book,
+  type EpubReaderPosition,
+  type ReaderFontSize,
+} from '@/domain';
 import {
   clearEpubRendererCache,
   EpubMetadataExtractor,
@@ -48,12 +55,18 @@ type EpubImportFlowResult =
 
 interface EpubReadingSession {
   readonly book: Book<'epub'>;
+  readonly fontSize: ReaderFontSize;
+  readonly fontSizePreferences?: EpubFontSizePreferenceService;
   readonly initialPosition?: EpubReaderPosition;
   readonly progress?: ReadingProgressService;
   readonly storage?: LocalStorage;
 }
 
-type ReadingSessionWarning = 'storage-unavailable' | 'progress-unavailable';
+type ReadingSessionWarning =
+  | 'storage-unavailable'
+  | 'progress-unavailable'
+  | 'preferences-unavailable'
+  | 'reading-data-unavailable';
 
 export default function LibraryRoute() {
   const [reloadKey, setReloadKey] = useState(0);
@@ -63,6 +76,7 @@ export default function LibraryRoute() {
     useState<EpubReadingSession | null>(null);
   const isOpeningReader = useRef(false);
   const didReportProgressFailure = useRef(false);
+  const didReportFontSizeFailure = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -114,11 +128,15 @@ export default function LibraryRoute() {
       }
       isOpeningReader.current = true;
       didReportProgressFailure.current = false;
+      didReportFontSizeFailure.current = false;
       void prepareEpubReadingSession(book)
         .then(({ session, warning }) => {
           if (warning !== undefined) {
-            didReportProgressFailure.current = true;
-            showReadingProgressWarning(warning);
+            didReportProgressFailure.current =
+              warning !== 'preferences-unavailable';
+            didReportFontSizeFailure.current =
+              warning !== 'progress-unavailable';
+            showReadingSessionWarning(warning);
           }
           setReadingSession(session);
         })
@@ -143,7 +161,22 @@ export default function LibraryRoute() {
     void session.progress.save(session.book, progress).then((saved) => {
       if (!saved.ok && !didReportProgressFailure.current) {
         didReportProgressFailure.current = true;
-        showReadingProgressWarning('progress-unavailable');
+        showReadingSessionWarning('progress-unavailable');
+      }
+    });
+  };
+
+  const persistFontSize = (
+    session: EpubReadingSession,
+    fontSize: ReaderFontSize,
+  ) => {
+    if (session.fontSizePreferences === undefined) {
+      return;
+    }
+    void session.fontSizePreferences.save(fontSize).then((saved) => {
+      if (!saved.ok && !didReportFontSizeFailure.current) {
+        didReportFontSizeFailure.current = true;
+        showReadingSessionWarning('preferences-unavailable');
       }
     });
   };
@@ -183,9 +216,13 @@ export default function LibraryRoute() {
             book={readingSession.book}
             clearRendererCache={clearEpubRendererCache}
             fileSystem={getExpoEpubRendererFileSystem}
+            initialFontSize={readingSession.fontSize}
             initialPosition={readingSession.initialPosition}
             loadReadingFont={loadBundledLiterataDataUri}
             onClose={closeReader}
+            onFontSizeChange={(fontSize) =>
+              persistFontSize(readingSession, fontSize)
+            }
             onProgressChange={(progress) =>
               persistReadingProgress(readingSession, progress)
             }
@@ -207,7 +244,10 @@ async function prepareEpubReadingSession(
   try {
     const initialized = await initializeLocalStorage();
     if (!initialized.ok) {
-      return { session: { book }, warning: 'storage-unavailable' };
+      return {
+        session: { book, fontSize: defaultReaderFontSize },
+        warning: 'storage-unavailable',
+      };
     }
 
     storage = initialized.value;
@@ -215,48 +255,86 @@ async function prepareEpubReadingSession(
       repository: storage.readingProgress,
       now: () => new Date(),
     });
+    const fontSizePreferences = createEpubFontSizePreferenceService({
+      repository: storage.preferences,
+      now: () => new Date(),
+    });
     const loaded = await progress.load(book);
-    if (!loaded.ok) {
-      return {
-        session: { book, progress, storage },
-        warning: 'progress-unavailable',
-      };
-    }
+    const loadedFontSize = await fontSizePreferences.load();
+    const warning = getReadingSessionWarning(loaded.ok, loadedFontSize.ok);
 
     return {
       session: {
         book,
+        fontSize: loadedFontSize.ok
+          ? loadedFontSize.value
+          : defaultReaderFontSize,
+        fontSizePreferences,
         progress,
         storage,
-        ...(loaded.value === null
+        ...(!loaded.ok || loaded.value === null
           ? {}
           : { initialPosition: loaded.value.position }),
       },
+      ...(warning === undefined ? {} : { warning }),
     };
   } catch {
     if (storage !== undefined) {
       await closeQuietly(storage);
     }
-    return { session: { book }, warning: 'storage-unavailable' };
+    return {
+      session: { book, fontSize: defaultReaderFontSize },
+      warning: 'storage-unavailable',
+    };
   }
 }
 
 async function closeReadingSession(session: EpubReadingSession): Promise<void> {
-  await session.progress?.flush();
+  await Promise.all([
+    session.progress?.flush(),
+    session.fontSizePreferences?.flush(),
+  ]);
   if (session.storage !== undefined) {
     await closeQuietly(session.storage);
   }
 }
 
-function showReadingProgressWarning(warning: ReadingSessionWarning): void {
+function showReadingSessionWarning(warning: ReadingSessionWarning): void {
+  if (warning === 'preferences-unavailable') {
+    Alert.alert(
+      'Préférence non enregistrée',
+      'La lecture reste disponible, mais la taille de police ne peut pas être restaurée ou enregistrée pour le moment.',
+    );
+    return;
+  }
+  if (warning === 'reading-data-unavailable') {
+    Alert.alert(
+      'Réglages de lecture indisponibles',
+      'La lecture reste disponible, mais la progression et la taille de police ne peuvent pas être restaurées ou enregistrées pour le moment.',
+    );
+    return;
+  }
   Alert.alert(
     warning === 'storage-unavailable'
       ? 'Stockage indisponible'
       : 'Progression non enregistrée',
     warning === 'storage-unavailable'
-      ? 'La lecture reste disponible, mais la dernière position ne peut pas être restaurée ni enregistrée.'
+      ? 'La lecture reste disponible, mais la progression et la taille de police ne peuvent pas être restaurées ou enregistrées.'
       : 'La lecture reste disponible, mais Reebbon ne peut pas restaurer ou enregistrer la position pour le moment.',
   );
+}
+
+function getReadingSessionWarning(
+  progressAvailable: boolean,
+  preferencesAvailable: boolean,
+): ReadingSessionWarning | undefined {
+  if (!progressAvailable && !preferencesAvailable) {
+    return 'reading-data-unavailable';
+  }
+  if (!progressAvailable) {
+    return 'progress-unavailable';
+  }
+  return preferencesAvailable ? undefined : 'preferences-unavailable';
 }
 
 function isEpubBook(book: Book): book is Book<'epub'> {
