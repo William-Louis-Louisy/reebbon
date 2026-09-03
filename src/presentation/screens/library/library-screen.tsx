@@ -13,6 +13,7 @@ import type { Book } from '@/domain';
 import { designSystemTokens } from '@/shared/theme';
 
 import { AppText } from '../../components/app-text';
+import { AppColorSchemeControl } from '../../components/app-color-scheme-control';
 import { BookCard } from '../../components/book-card';
 import { Ribbon } from '../../components/ribbon';
 import { useAppTheme } from '../../hooks/use-app-theme';
@@ -111,6 +112,7 @@ function LibraryHeader({
       <AppText tone="muted">
         Vos ouvrages, leur couverture et votre progression réunis au même endroit.
       </AppText>
+      <AppColorSchemeControl />
       {showImportAction ? (
         <LibraryAction
           disabled={isImporting}

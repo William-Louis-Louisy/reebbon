@@ -67,6 +67,14 @@ test('application UI themes derive light chrome from Paper and dark chrome from 
   assert.equal(appUiThemes.dark.accent, designSystemTokens.colors.oxbloodTint);
 });
 
+test('application UI theme text colors meet WCAG AA contrast', () => {
+  for (const theme of Object.values(appUiThemes)) {
+    assert.ok(contrastRatio(theme.text, theme.background) >= 4.5);
+    assert.ok(contrastRatio(theme.textMuted, theme.background) >= 4.5);
+    assert.ok(contrastRatio(theme.accent, theme.background) >= 4.5);
+  }
+});
+
 test('navigation theme mirrors the semantic application theme for each UI mode', () => {
   const lightTheme = getNavigationTheme('light');
   const darkTheme = getNavigationTheme('dark');
@@ -81,3 +89,29 @@ test('navigation theme mirrors the semantic application theme for each UI mode',
   assert.equal(darkTheme.colors.card, appUiThemes.dark.surface);
   assert.equal(darkTheme.colors.text, appUiThemes.dark.text);
 });
+
+function contrastRatio(foreground: string, background: string): number {
+  const lighter = Math.max(luminance(foreground), luminance(background));
+  const darker = Math.min(luminance(foreground), luminance(background));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function luminance(hex: string): number {
+  const channels = hex
+    .slice(1)
+    .match(/.{2}/g)
+    ?.map((value) => Number.parseInt(value, 16) / 255);
+
+  assert.ok(channels);
+  return channels
+    .map((channel) =>
+      channel <= 0.03928
+        ? channel / 12.92
+        : ((channel + 0.055) / 1.055) ** 2.4,
+    )
+    .reduce(
+      (result, channel, index) =>
+        result + channel * [0.2126, 0.7152, 0.0722][index],
+      0,
+    );
+}

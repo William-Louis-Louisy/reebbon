@@ -3,6 +3,7 @@ export { SqliteApplicationPreferenceRepository } from './database/repositories/s
 export { ExpoFileImportSourcePicker } from './importing/expo-file-import-source-picker';
 export { EpubMetadataExtractor } from './importing/epub-metadata-extractor';
 export { ExpoImportFileReader } from './importing/expo-import-file-reader';
+export { createLocalAppColorSchemePreferenceService } from './preferences/local-app-color-scheme-preference-service';
 export {
   clearEpubRendererCache,
   getExpoEpubRendererFileSystem,

@@ -1,4 +1,9 @@
 export type { Book, BookFormat, BookId } from './books/book';
+export {
+  defaultAppColorScheme,
+  isAppColorScheme,
+  type AppColorScheme,
+} from './preferences/app-color-scheme';
 export type { Bookmark, BookmarkId, BookmarkRecord } from './reading/bookmark';
 export type { ReaderCapabilities, ReadingDirection } from './reading/reader-capabilities';
 export {
