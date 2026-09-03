@@ -11,6 +11,16 @@ export {
   type ReaderFontSize,
 } from './reading/reader-font-size';
 export {
+  defaultReaderHorizontalMargin,
+  defaultReaderLineSpacing,
+  isReaderHorizontalMargin,
+  isReaderLineSpacing,
+  readerHorizontalMarginOptions,
+  readerLineSpacingOptions,
+  type ReaderHorizontalMargin,
+  type ReaderLineSpacing,
+} from './reading/reader-layout';
+export {
   isValidEpubCfi,
   parseReaderPosition,
   type EpubReaderPosition,

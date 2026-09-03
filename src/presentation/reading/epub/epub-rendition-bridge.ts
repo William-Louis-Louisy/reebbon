@@ -8,6 +8,8 @@ import {
   err,
   ok,
   type ReaderFontSize,
+  type ReaderHorizontalMargin,
+  type ReaderLineSpacing,
   type ReadingTheme,
   type Result,
 } from '@/domain';
@@ -20,6 +22,8 @@ export interface EpubRenditionControls {
   readonly goNext: () => void;
   readonly changeTheme: (theme: ReadingTheme) => void;
   readonly changeFontSize: (fontSize: ReaderFontSize) => void;
+  readonly changeHorizontalMargin: (margin: ReaderHorizontalMargin) => void;
+  readonly changeLineSpacing: (lineSpacing: ReaderLineSpacing) => void;
 }
 
 export interface EpubDisplayLocation extends EpubRenditionLocation {
@@ -140,6 +144,22 @@ export class EpubRenditionBridge implements EpubRendition {
   ): Promise<Result<void, EpubRenditionError>> {
     return Promise.resolve(
       this.runControl((controls) => controls.changeFontSize(fontSize)),
+    );
+  }
+
+  public setHorizontalMargin(
+    margin: ReaderHorizontalMargin,
+  ): Promise<Result<void, EpubRenditionError>> {
+    return Promise.resolve(
+      this.runControl((controls) => controls.changeHorizontalMargin(margin)),
+    );
+  }
+
+  public setLineSpacing(
+    lineSpacing: ReaderLineSpacing,
+  ): Promise<Result<void, EpubRenditionError>> {
+    return Promise.resolve(
+      this.runControl((controls) => controls.changeLineSpacing(lineSpacing)),
     );
   }
 

@@ -49,6 +49,7 @@ export type {
   Reader,
   ReaderError,
   ReaderFontCustomization,
+  ReaderLayoutCustomization,
   ReaderProgress,
   ReaderTableOfContents,
   ReaderTableOfContentsEntry,

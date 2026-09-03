@@ -5,10 +5,14 @@ import test from 'node:test';
 
 import {
   defaultReaderFontSize,
+  defaultReaderHorizontalMargin,
+  defaultReaderLineSpacing,
   parseReaderFontSize,
 } from '../../src/domain';
 import { designSystemTokens, readingThemes } from '../../src/shared/theme';
 import {
+  createEpubHorizontalMarginInjection,
+  createEpubLineSpacingInjection,
   createLiterataInjection,
   epubCoreThemes,
   formatEpubFontSize,
@@ -88,6 +92,29 @@ test('EPUB font sizes use the validated pixel scale expected by epub.js', () => 
   if (maximum.ok) {
     assert.equal(formatEpubFontSize(maximum.value), '24px');
   }
+});
+
+test('EPUB layout uses theme-safe overrides for design-system presets', () => {
+  assert.equal(
+    epubCoreThemes.paper.html?.['--reebbon-line-spacing'],
+    String(defaultReaderLineSpacing),
+  );
+  assert.equal(
+    epubCoreThemes.paper.html?.['--reebbon-horizontal-margin'],
+    `${defaultReaderHorizontalMargin}px`,
+  );
+  assert.equal(
+    epubCoreThemes.paper.body?.['line-height'],
+    'var(--reebbon-line-spacing)',
+  );
+  assert.match(
+    createEpubLineSpacingInjection(1.9),
+    /themes\.override\("--reebbon-line-spacing", "1\.9", true\)/,
+  );
+  assert.match(
+    createEpubHorizontalMarginInjection(32),
+    /themes\.override\("--reebbon-horizontal-margin", "32px", true\)/,
+  );
 });
 
 test('Literata injection accepts only bundled font data and folios stay bounded', () => {

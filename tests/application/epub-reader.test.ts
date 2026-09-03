@@ -10,11 +10,15 @@ import {
 } from '../../src/application';
 import {
   defaultReaderFontSize,
+  defaultReaderHorizontalMargin,
+  defaultReaderLineSpacing,
   err,
   ok,
   parseReaderFontSize,
   type Book,
   type ReaderFontSize,
+  type ReaderHorizontalMargin,
+  type ReaderLineSpacing,
 } from '../../src/domain';
 
 const book: Book<'epub'> = {
@@ -67,6 +71,14 @@ function createRendition() {
       calls.push(`font-size:${fontSize}`);
       return Promise.resolve(ok(undefined));
     },
+    setHorizontalMargin(margin) {
+      calls.push(`horizontal-margin:${margin}`);
+      return Promise.resolve(ok(undefined));
+    },
+    setLineSpacing(lineSpacing) {
+      calls.push(`line-spacing:${lineSpacing}`);
+      return Promise.resolve(ok(undefined));
+    },
     close() {
       calls.push('close');
       return Promise.resolve(ok(undefined));
@@ -98,6 +110,19 @@ test('EPUB reader implements the common lifecycle and reports typed CFI progress
     return;
   }
   assert.deepEqual(await customization.setFontSize(fontSize.value), ok(undefined));
+  const layoutCustomization = reader.layoutCustomization;
+  assert.notEqual(layoutCustomization, undefined);
+  if (layoutCustomization === undefined) {
+    return;
+  }
+  assert.deepEqual(
+    await layoutCustomization.setHorizontalMargin(defaultReaderHorizontalMargin),
+    ok(undefined),
+  );
+  assert.deepEqual(
+    await layoutCustomization.setLineSpacing(defaultReaderLineSpacing),
+    ok(undefined),
+  );
   assert.deepEqual(await reader.getProgress(), {
     ok: true,
     value: { position: target, completionRatio: 1 },
@@ -110,6 +135,8 @@ test('EPUB reader implements the common lifecycle and reports typed CFI progress
     'theme:sepia',
     'theme:night',
     'font-size:20',
+    'horizontal-margin:24',
+    'line-spacing:1.7',
     'get-location',
     'close',
   ]);
@@ -172,10 +199,31 @@ test('EPUB reader rejects invalid content and positions before touching the rend
     await customization.setFontSize(defaultReaderFontSize),
     err({ kind: 'not-open' }),
   );
+  const layoutCustomization = reader.layoutCustomization;
+  assert.notEqual(layoutCustomization, undefined);
+  if (layoutCustomization === undefined) {
+    return;
+  }
+  assert.deepEqual(
+    await layoutCustomization.setHorizontalMargin(defaultReaderHorizontalMargin),
+    err({ kind: 'not-open' }),
+  );
+  assert.deepEqual(
+    await layoutCustomization.setLineSpacing(defaultReaderLineSpacing),
+    err({ kind: 'not-open' }),
+  );
   await reader.open(book);
   assert.deepEqual(
     await customization.setFontSize(48 as ReaderFontSize),
     err({ kind: 'invalid-font-size', fontSize: 48 }),
+  );
+  assert.deepEqual(
+    await layoutCustomization.setHorizontalMargin(20 as ReaderHorizontalMargin),
+    err({ kind: 'invalid-horizontal-margin', margin: 20 }),
+  );
+  assert.deepEqual(
+    await layoutCustomization.setLineSpacing(2 as ReaderLineSpacing),
+    err({ kind: 'invalid-line-spacing', lineSpacing: 2 }),
   );
   assert.deepEqual(harness.calls, [`open:${book.fileUri}:start`]);
 });
