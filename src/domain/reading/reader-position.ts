@@ -46,7 +46,7 @@ export function parseReaderPosition(value: unknown): Result<ReaderPosition, Inva
 
   switch (value.kind) {
     case 'epub':
-      return typeof value.cfi === 'string' && value.cfi.trim().length > 0
+      return isValidEpubCfi(value.cfi)
         ? ok({ kind: 'epub', cfi: value.cfi })
         : err({ kind: 'invalid-reader-position', reason: 'invalid-epub-cfi' });
     case 'pdf':
@@ -60,4 +60,12 @@ export function parseReaderPosition(value: unknown): Result<ReaderPosition, Inva
     default:
       return err({ kind: 'invalid-reader-position', reason: 'unsupported-kind' });
   }
+}
+
+export function isValidEpubCfi(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.startsWith('epubcfi(') &&
+    value.endsWith(')')
+  );
 }

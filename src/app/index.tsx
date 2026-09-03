@@ -1,15 +1,18 @@
 import { randomUUID } from 'expo-crypto';
-import { startTransition, useEffect, useState } from 'react';
+import { startTransition, useEffect, useRef, useState } from 'react';
 import { Alert, Modal } from 'react-native';
 
 import {
   createEpubImporter,
   createImportFormatDetector,
   createListLibraryBooks,
+  createReadingProgressService,
   type ImportError,
   type LibraryBookItem,
+  type ReaderProgress,
+  type ReadingProgressService,
 } from '@/application';
-import type { Book } from '@/domain';
+import type { Book, EpubReaderPosition } from '@/domain';
 import {
   clearEpubRendererCache,
   EpubMetadataExtractor,
@@ -43,11 +46,23 @@ type EpubImportFlowResult =
   | { readonly status: 'library-failure' }
   | { readonly status: 'import-failure'; readonly error: ImportError };
 
+interface EpubReadingSession {
+  readonly book: Book<'epub'>;
+  readonly initialPosition?: EpubReaderPosition;
+  readonly progress?: ReadingProgressService;
+  readonly storage?: LocalStorage;
+}
+
+type ReadingSessionWarning = 'storage-unavailable' | 'progress-unavailable';
+
 export default function LibraryRoute() {
   const [reloadKey, setReloadKey] = useState(0);
   const [state, setState] = useState<LibraryScreenState>(loadingState);
   const [isImporting, setIsImporting] = useState(false);
-  const [readerBook, setReaderBook] = useState<Book<'epub'> | null>(null);
+  const [readingSession, setReadingSession] =
+    useState<EpubReadingSession | null>(null);
+  const isOpeningReader = useRef(false);
+  const didReportProgressFailure = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -94,13 +109,59 @@ export default function LibraryRoute() {
 
   const openBook = (book: Book) => {
     if (isEpubBook(book)) {
-      setReaderBook(book);
+      if (isOpeningReader.current || readingSession !== null) {
+        return;
+      }
+      isOpeningReader.current = true;
+      didReportProgressFailure.current = false;
+      void prepareEpubReadingSession(book)
+        .then(({ session, warning }) => {
+          if (warning !== undefined) {
+            didReportProgressFailure.current = true;
+            showReadingProgressWarning(warning);
+          }
+          setReadingSession(session);
+        })
+        .finally(() => {
+          isOpeningReader.current = false;
+        });
       return;
     }
     Alert.alert(
       'Lecture indisponible',
       'Le moteur de lecture de ce format n’est pas encore disponible.',
     );
+  };
+
+  const persistReadingProgress = (
+    session: EpubReadingSession,
+    progress: ReaderProgress<'epub'>,
+  ) => {
+    if (session.progress === undefined) {
+      return;
+    }
+    void session.progress.save(session.book, progress).then((saved) => {
+      if (!saved.ok && !didReportProgressFailure.current) {
+        didReportProgressFailure.current = true;
+        showReadingProgressWarning('progress-unavailable');
+      }
+    });
+  };
+
+  const closeReader = () => {
+    const session = readingSession;
+    setReadingSession(null);
+    if (session === null) {
+      return;
+    }
+    isOpeningReader.current = true;
+    void closeReadingSession(session).finally(() => {
+      startTransition(() => {
+        setState(loadingState);
+        setReloadKey((current) => current + 1);
+      });
+      isOpeningReader.current = false;
+    });
   };
 
   return (
@@ -114,21 +175,87 @@ export default function LibraryRoute() {
       />
       <Modal
         animationType="none"
-        onRequestClose={() => setReaderBook(null)}
+        onRequestClose={closeReader}
         presentationStyle="fullScreen"
-        visible={readerBook !== null}>
-        {readerBook === null ? null : (
+        visible={readingSession !== null}>
+        {readingSession === null ? null : (
           <EpubReaderScreen
-            book={readerBook}
+            book={readingSession.book}
             clearRendererCache={clearEpubRendererCache}
             fileSystem={getExpoEpubRendererFileSystem}
+            initialPosition={readingSession.initialPosition}
             loadReadingFont={loadBundledLiterataDataUri}
-            onClose={() => setReaderBook(null)}
+            onClose={closeReader}
+            onProgressChange={(progress) =>
+              persistReadingProgress(readingSession, progress)
+            }
             prepareSource={prepareEpubForRendering}
           />
         )}
       </Modal>
     </>
+  );
+}
+
+async function prepareEpubReadingSession(
+  book: Book<'epub'>,
+): Promise<{
+  readonly session: EpubReadingSession;
+  readonly warning?: ReadingSessionWarning;
+}> {
+  let storage: LocalStorage | undefined;
+  try {
+    const initialized = await initializeLocalStorage();
+    if (!initialized.ok) {
+      return { session: { book }, warning: 'storage-unavailable' };
+    }
+
+    storage = initialized.value;
+    const progress = createReadingProgressService({
+      repository: storage.readingProgress,
+      now: () => new Date(),
+    });
+    const loaded = await progress.load(book);
+    if (!loaded.ok) {
+      return {
+        session: { book, progress, storage },
+        warning: 'progress-unavailable',
+      };
+    }
+
+    return {
+      session: {
+        book,
+        progress,
+        storage,
+        ...(loaded.value === null
+          ? {}
+          : { initialPosition: loaded.value.position }),
+      },
+    };
+  } catch {
+    if (storage !== undefined) {
+      await closeQuietly(storage);
+    }
+    return { session: { book }, warning: 'storage-unavailable' };
+  }
+}
+
+async function closeReadingSession(session: EpubReadingSession): Promise<void> {
+  await session.progress?.flush();
+  if (session.storage !== undefined) {
+    await closeQuietly(session.storage);
+  }
+}
+
+function showReadingProgressWarning(warning: ReadingSessionWarning): void {
+  Alert.alert(
+    warning === 'storage-unavailable'
+      ? 'Stockage indisponible'
+      : 'Progression non enregistrée',
+    warning === 'storage-unavailable'
+      ? 'La lecture reste disponible, mais la dernière position ne peut pas être restaurée ni enregistrée.'
+      : 'La lecture reste disponible, mais Reebbon ne peut pas restaurer ou enregistrer la position pour le moment.',
   );
 }
 

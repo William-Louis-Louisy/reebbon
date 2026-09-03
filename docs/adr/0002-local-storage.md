@@ -30,3 +30,11 @@ Les repositories SQLite et le stockage de contenu implementent les ports applica
 `expo-sqlite` et `expo-file-system` deviennent des dependances natives et doivent etre inclus dans les development builds iOS et Android. Les tests Node utilisent une connexion SQLite de test et un gateway FileSystem en memoire ; ils ne remplacent pas une validation sur appareil des APIs natives.
 
 La coordination atomique entre commit FileSystem et persistance SQLite appartiendra au pipeline d'import. La suppression produit complete, incluant confirmation UI et coordination fichiers/base, reste dans BIB-05.
+
+## Mise a jour RDR-EPUB-03 - 2026-09-03
+
+La reprise de lecture utilise le schema `reading_progress` existant sans migration. Un service applicatif multi-format charge et valide le couple position/progression avant l'ouverture du `Reader`, puis construit un unique enregistrement a partir de chaque snapshot retourne par `Reader.getProgress()`.
+
+Les ecritures d'une session sont serialisees dans leur ordre d'emission afin qu'une operation SQLite lente ne puisse pas remplacer une page recente par une position plus ancienne. La fermeture attend la file d'ecriture avant de fermer la connexion. Le composition root possede cette connexion pendant la session de lecture; la presentation ne depend ni de SQLite ni de l'infrastructure.
+
+Une erreur de lecture ou d'ecriture de progression reste non bloquante pour la lecture et produit un avertissement utilisateur type. Les exceptions inattendues du repository sont converties en `persistence-failure`. Les donnees persistees invalides, notamment un CFI EPUB mal forme ou incompatible avec le format du livre, ne sont jamais transmises au renderer.

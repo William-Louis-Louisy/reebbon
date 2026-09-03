@@ -50,6 +50,14 @@ export {
 } from './reader/epub-reader';
 export type { BookmarkRepository } from './reading/bookmark-repository';
 export type { ReadingProgressRepository } from './reading/reading-progress-repository';
+export {
+  createReadingProgressService,
+  type InvalidReadingProgressError,
+  type InvalidReadingProgressReason,
+  type ReadingProgressService,
+  type ReadingProgressServiceDependencies,
+  type ReadingProgressServiceError,
+} from './reading/reading-progress-service';
 export type { RepositoryError } from './shared/repository-error';
 export type {
   BookContentStore,

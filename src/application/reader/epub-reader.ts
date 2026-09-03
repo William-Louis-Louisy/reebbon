@@ -1,4 +1,10 @@
-import { err, ok, type ReadingTheme, type Result } from '../../domain';
+import {
+  err,
+  isValidEpubCfi,
+  ok,
+  type ReadingTheme,
+  type Result,
+} from '../../domain';
 
 import type {
   Reader,
@@ -91,7 +97,10 @@ export function createEpubReader(rendition: EpubRendition): Reader<'epub'> {
       if (!isLocalEpubUri(book.fileUri)) {
         return err({ kind: 'content-access-failure' });
       }
-      if (initialPosition !== undefined && !isValidCfi(initialPosition.cfi)) {
+      if (
+        initialPosition !== undefined &&
+        !isValidEpubCfi(initialPosition.cfi)
+      ) {
         return err({ kind: 'invalid-position', position: initialPosition });
       }
 
@@ -107,7 +116,7 @@ export function createEpubReader(rendition: EpubRendition): Reader<'epub'> {
       if (state !== 'open') {
         return err({ kind: 'not-open' });
       }
-      if (!isValidCfi(position.cfi)) {
+      if (!isValidEpubCfi(position.cfi)) {
         return err({ kind: 'invalid-position', position });
       }
       return callRendition(() => rendition.goTo(position.cfi));
@@ -146,10 +155,6 @@ export function createEpubReader(rendition: EpubRendition): Reader<'epub'> {
 
 function isLocalEpubUri(uri: string): boolean {
   return uri.startsWith('file:///') && /\.epub$/i.test(uri);
-}
-
-function isValidCfi(cfi: string): boolean {
-  return cfi.trim().startsWith('epubcfi(') && cfi.trim().endsWith(')');
 }
 
 function normalizeCompletionRatio(value: number): number {

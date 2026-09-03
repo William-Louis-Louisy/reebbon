@@ -2,6 +2,7 @@ export type { Book, BookFormat, BookId } from './books/book';
 export type { Bookmark, BookmarkId, BookmarkRecord } from './reading/bookmark';
 export type { ReaderCapabilities, ReadingDirection } from './reading/reader-capabilities';
 export {
+  isValidEpubCfi,
   parseReaderPosition,
   type EpubReaderPosition,
   type ImageReaderPosition,

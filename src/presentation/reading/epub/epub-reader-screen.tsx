@@ -54,8 +54,10 @@ function EpubReaderSession({
   bridge,
   clearRendererCache,
   fileSystem,
+  initialPosition,
   loadReadingFont,
   onClose,
+  onProgressChange,
   prepareSource,
   reader,
 }: EpubReaderSessionProps) {
@@ -106,7 +108,10 @@ function EpubReaderSession({
         return;
       }
       setFontDataUri(resources.fontDataUri);
-      return reader.open({ ...book, fileUri: resources.sourceUri });
+      return reader.open(
+        { ...book, fileUri: resources.sourceUri },
+        initialPosition,
+      );
     });
 
     return () => {
@@ -119,6 +124,7 @@ function EpubReaderSession({
   }, [
     book,
     clearRendererCache,
+    initialPosition,
     loadReadingFont,
     prepareSource,
     reader,
@@ -128,6 +134,7 @@ function EpubReaderSession({
     void reader.getProgress().then((progress) => {
       if (progress.ok) {
         setCompletionRatio(progress.value.completionRatio);
+        onProgressChange(progress.value);
       }
     });
   };
@@ -204,7 +211,10 @@ function EpubReaderSession({
         return;
       }
       setFontDataUri(resources.fontDataUri);
-      await reader.open({ ...book, fileUri: resources.sourceUri });
+      await reader.open(
+        { ...book, fileUri: resources.sourceUri },
+        initialPosition,
+      );
     });
   };
 
