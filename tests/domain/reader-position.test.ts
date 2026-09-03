@@ -23,6 +23,7 @@ test('parseReaderPosition rejects malformed persisted positions with typed reaso
     [{ cfi: 'missing kind' }, 'missing-kind'],
     [{ kind: 'mobi', offset: 4 }, 'unsupported-kind'],
     [{ kind: 'epub', cfi: '  ' }, 'invalid-epub-cfi'],
+    [{ kind: 'epub', cfi: 'chapter-4.xhtml' }, 'invalid-epub-cfi'],
     [{ kind: 'pdf', page: 0 }, 'invalid-pdf-page'],
     [{ kind: 'pdf', page: 1.5 }, 'invalid-pdf-page'],
     [{ kind: 'images', index: -1 }, 'invalid-image-index'],
