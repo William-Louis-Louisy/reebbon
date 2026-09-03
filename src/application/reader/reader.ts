@@ -4,6 +4,7 @@ import type {
   ReaderCapabilities,
   ReaderPosition,
   ReaderPositionFor,
+  ReaderFontSize,
   ReadingTheme,
   Result,
 } from '../../domain';
@@ -27,6 +28,10 @@ export interface ReaderTableOfContents {
   goToEntry(entryId: string): Promise<Result<void, ReaderError>>;
 }
 
+export interface ReaderFontCustomization {
+  setFontSize(fontSize: ReaderFontSize): Promise<Result<void, ReaderError>>;
+}
+
 export type ReaderError =
   | { readonly kind: 'not-open' }
   | {
@@ -39,10 +44,11 @@ export type ReaderError =
       readonly kind: 'invalid-table-of-contents-entry';
       readonly entryId: string;
     }
+  | { readonly kind: 'invalid-font-size'; readonly fontSize: number }
   | { readonly kind: 'content-access-failure' }
   | { readonly kind: 'rendering-failure' };
 
-export interface Reader<F extends BookFormat = BookFormat> {
+interface ReaderBase<F extends BookFormat> {
   readonly format: F;
   readonly capabilities: ReaderCapabilities;
   readonly tableOfContents?: ReaderTableOfContents;
@@ -56,3 +62,20 @@ export interface Reader<F extends BookFormat = BookFormat> {
   setTheme(theme: ReadingTheme): Promise<Result<void, ReaderError>>;
   close(): Promise<Result<void, ReaderError>>;
 }
+
+type ReaderFontCustomizationSupport =
+  | {
+      readonly capabilities: ReaderCapabilities & {
+        readonly fontCustomization: true;
+      };
+      readonly fontCustomization: ReaderFontCustomization;
+    }
+  | {
+      readonly capabilities: ReaderCapabilities & {
+        readonly fontCustomization: false;
+      };
+      readonly fontCustomization?: never;
+    };
+
+export type Reader<F extends BookFormat = BookFormat> = ReaderBase<F> &
+  ReaderFontCustomizationSupport;

@@ -4,7 +4,13 @@ import type {
   EpubRenditionLocation,
   ReaderTableOfContentsEntry,
 } from '@/application';
-import { err, ok, type ReadingTheme, type Result } from '@/domain';
+import {
+  err,
+  ok,
+  type ReaderFontSize,
+  type ReadingTheme,
+  type Result,
+} from '@/domain';
 
 const DEFAULT_OPEN_TIMEOUT_MS = 20_000;
 
@@ -13,6 +19,7 @@ export interface EpubRenditionControls {
   readonly goPrevious: () => void;
   readonly goNext: () => void;
   readonly changeTheme: (theme: ReadingTheme) => void;
+  readonly changeFontSize: (fontSize: ReaderFontSize) => void;
 }
 
 export interface EpubDisplayLocation extends EpubRenditionLocation {
@@ -126,6 +133,14 @@ export class EpubRenditionBridge implements EpubRendition {
 
   public setTheme(theme: ReadingTheme): Promise<Result<void, EpubRenditionError>> {
     return Promise.resolve(this.runControl((controls) => controls.changeTheme(theme)));
+  }
+
+  public setFontSize(
+    fontSize: ReaderFontSize,
+  ): Promise<Result<void, EpubRenditionError>> {
+    return Promise.resolve(
+      this.runControl((controls) => controls.changeFontSize(fontSize)),
+    );
   }
 
   public close(): Promise<Result<void, EpubRenditionError>> {

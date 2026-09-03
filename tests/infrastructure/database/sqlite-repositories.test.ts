@@ -5,6 +5,7 @@ import test from 'node:test';
 
 import type { Book, Bookmark, ReadingProgress } from '../../../src/domain';
 import { migrateDatabase } from '../../../src/infrastructure/database/migrations';
+import { SqliteApplicationPreferenceRepository } from '../../../src/infrastructure/database/repositories/sqlite-application-preference-repository';
 import { SqliteBookmarkRepository } from '../../../src/infrastructure/database/repositories/sqlite-bookmark-repository';
 import { SqliteBookRepository } from '../../../src/infrastructure/database/repositories/sqlite-book-repository';
 import { SqliteReadingProgressRepository } from '../../../src/infrastructure/database/repositories/sqlite-reading-progress-repository';
@@ -154,6 +155,55 @@ test('SQLite constraints reject mismatched formats and repositories reject inval
       ok: false,
       error: { kind: 'persistence-failure', operation: 'write' },
     });
+  } finally {
+    await connection.close();
+  }
+});
+
+test('SQLite application preferences survive repository instances and reject malformed rows', async () => {
+  const connection = new NodeSqliteConnection();
+  await migrateDatabase(connection);
+  const preferences = new SqliteApplicationPreferenceRepository(connection);
+  const key = 'reader.epub.font-size';
+
+  try {
+    assert.deepEqual(await preferences.get(key), { ok: true, value: null });
+    assert.deepEqual(
+      await preferences.save({
+        key,
+        value: '20',
+        updatedAt,
+      }),
+      { ok: true, value: undefined },
+    );
+
+    const reopened = new SqliteApplicationPreferenceRepository(connection);
+    const stored = await reopened.get(key);
+    assert.equal(stored.ok && stored.value?.value, '20');
+    assert.equal(
+      stored.ok && stored.value?.updatedAt.toISOString(),
+      updatedAt.toISOString(),
+    );
+
+    await connection.run(
+      'UPDATE application_preferences SET updated_at = ? WHERE key = ?',
+      ['not-a-date', key],
+    );
+    assert.deepEqual(await reopened.get(key), {
+      ok: false,
+      error: { kind: 'persistence-failure', operation: 'read' },
+    });
+    assert.deepEqual(
+      await reopened.save({
+        key,
+        value: '21',
+        updatedAt: new Date('invalid'),
+      }),
+      {
+        ok: false,
+        error: { kind: 'persistence-failure', operation: 'write' },
+      },
+    );
   } finally {
     await connection.close();
   }

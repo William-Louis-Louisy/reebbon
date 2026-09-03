@@ -61,6 +61,7 @@ test('local storage initialization migrates SQLite and exposes every required po
       true,
     );
     assert.equal((await initialized.value.bookmarks.listByBookId('missing')).ok, true);
+    assert.equal((await initialized.value.preferences.get('missing')).ok, true);
     assert.ok(initialized.value.content instanceof TestContentStore);
     await initialized.value.close();
   }

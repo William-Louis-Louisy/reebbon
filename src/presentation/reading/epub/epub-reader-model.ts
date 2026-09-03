@@ -1,7 +1,12 @@
 import type { Theme as CoreTheme } from '@epubjs-react-native/core';
 
 import type { ReaderTableOfContentsEntry } from '@/application';
-import { err, ok, type Result } from '@/domain';
+import {
+  err,
+  ok,
+  type ReaderFontSize,
+  type Result,
+} from '@/domain';
 import {
   designSystemTokens,
   readingThemes,
@@ -34,6 +39,10 @@ export const epubCoreThemes: Record<ReadingThemeName, CoreTheme> = {
   sepia: createCoreTheme('sepia'),
   night: createCoreTheme('night'),
 };
+
+export function formatEpubFontSize(fontSize: ReaderFontSize): string {
+  return String(fontSize) + 'px';
+}
 
 export function parseEpubTableOfContents(
   value: unknown,

@@ -65,6 +65,7 @@ test('a format adapter can implement the common Reader contract without framewor
   assert.equal(reader.format, 'pdf');
   assert.equal(reader.capabilities.zoom, true);
   assert.equal(reader.capabilities.fontCustomization, false);
+  assert.equal(reader.fontCustomization, undefined);
   assert.equal(selectedTheme, 'night');
   assert.equal(progress.ok, true);
   if (progress.ok) {

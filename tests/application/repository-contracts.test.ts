@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type {
+  ApplicationPreferenceRepository,
   BookRepository,
   BookmarkRepository,
   ReadingProgressRepository,
@@ -75,10 +76,23 @@ test('library and progress repositories are implementable as framework-free port
       return ok(undefined);
     },
   };
+  const preferences: ApplicationPreferenceRepository = {
+    async get(key) {
+      return ok({
+        key,
+        value: '17',
+        updatedAt: new Date('2026-08-31T11:00:00.000Z'),
+      });
+    },
+    async save(_preference) {
+      return ok(undefined);
+    },
+  };
 
   const foundBook = await books.getById(book.id);
   const foundProgress = await progressRepository.getByBookId(book.id);
   const foundBookmarks = await bookmarks.listByBookId(book.id);
+  const foundPreference = await preferences.get('reader.epub.font-size');
 
   assert.equal(foundBook.ok && foundBook.value?.format, 'pdf');
   assert.equal(
@@ -86,4 +100,8 @@ test('library and progress repositories are implementable as framework-free port
     'pdf',
   );
   assert.equal(foundBookmarks.ok && foundBookmarks.value.length, 1);
+  assert.equal(
+    foundPreference.ok && foundPreference.value?.value,
+    '17',
+  );
 });

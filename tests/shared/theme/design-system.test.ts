@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { readerFontSizeRange } from '../../../src/domain';
 import {
   appUiThemes,
   designSystemTokens,
@@ -26,6 +27,14 @@ test('design system tokens expose the Reebbon palette, type families, spacing, r
   assert.equal(designSystemTokens.typography.families.ui, 'Public Sans');
   assert.equal(designSystemTokens.typography.families.reading, 'Literata');
   assert.equal(designSystemTokens.typography.families.mono, 'IBM Plex Mono');
+  assert.equal(
+    designSystemTokens.typography.roles.reading.size,
+    readerFontSizeRange.default,
+  );
+  assert.equal(
+    designSystemTokens.components.readingFontSizeControl.buttonSize,
+    28,
+  );
 });
 
 test('reading themes remain independent from application light and dark chrome', () => {

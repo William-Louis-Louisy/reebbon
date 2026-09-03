@@ -28,6 +28,17 @@ export {
   type EpubImporterDependencies,
 } from './importing/import-epub';
 export type { BookRepository } from './library/book-repository';
+export type {
+  ApplicationPreference,
+  ApplicationPreferenceRepository,
+} from './preferences/application-preference-repository';
+export {
+  createEpubFontSizePreferenceService,
+  type EpubFontSizePreferenceService,
+  type EpubFontSizePreferenceServiceDependencies,
+  type EpubFontSizePreferenceServiceError,
+  type InvalidEpubFontSizePreferenceError,
+} from './preferences/epub-font-size-preference-service';
 export {
   createListLibraryBooks,
   type LibraryBookItem,
@@ -37,6 +48,7 @@ export {
 export type {
   Reader,
   ReaderError,
+  ReaderFontCustomization,
   ReaderProgress,
   ReaderTableOfContents,
   ReaderTableOfContentsEntry,
