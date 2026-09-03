@@ -5,6 +5,8 @@ import type {
   ReaderPosition,
   ReaderPositionFor,
   ReaderFontSize,
+  ReaderHorizontalMargin,
+  ReaderLineSpacing,
   ReadingTheme,
   Result,
 } from '../../domain';
@@ -32,6 +34,15 @@ export interface ReaderFontCustomization {
   setFontSize(fontSize: ReaderFontSize): Promise<Result<void, ReaderError>>;
 }
 
+export interface ReaderLayoutCustomization {
+  setHorizontalMargin(
+    margin: ReaderHorizontalMargin,
+  ): Promise<Result<void, ReaderError>>;
+  setLineSpacing(
+    lineSpacing: ReaderLineSpacing,
+  ): Promise<Result<void, ReaderError>>;
+}
+
 export type ReaderError =
   | { readonly kind: 'not-open' }
   | {
@@ -45,6 +56,14 @@ export type ReaderError =
       readonly entryId: string;
     }
   | { readonly kind: 'invalid-font-size'; readonly fontSize: number }
+  | {
+      readonly kind: 'invalid-horizontal-margin';
+      readonly margin: number;
+    }
+  | {
+      readonly kind: 'invalid-line-spacing';
+      readonly lineSpacing: number;
+    }
   | { readonly kind: 'content-access-failure' }
   | { readonly kind: 'rendering-failure' };
 
@@ -77,5 +96,20 @@ type ReaderFontCustomizationSupport =
       readonly fontCustomization?: never;
     };
 
+type ReaderLayoutCustomizationSupport =
+  | {
+      readonly capabilities: ReaderCapabilities & {
+        readonly layoutCustomization: true;
+      };
+      readonly layoutCustomization: ReaderLayoutCustomization;
+    }
+  | {
+      readonly capabilities: ReaderCapabilities & {
+        readonly layoutCustomization: false;
+      };
+      readonly layoutCustomization?: never;
+    };
+
 export type Reader<F extends BookFormat = BookFormat> = ReaderBase<F> &
-  ReaderFontCustomizationSupport;
+  ReaderFontCustomizationSupport &
+  ReaderLayoutCustomizationSupport;

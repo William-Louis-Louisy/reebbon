@@ -3,7 +3,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { readerFontSizeRange } from '../../../src/domain';
+import {
+  readerFontSizeRange,
+  readerHorizontalMarginOptions,
+} from '../../../src/domain';
 import {
   appUiThemes,
   designSystemTokens,
@@ -33,6 +36,15 @@ test('design system tokens expose the Reebbon palette, type families, spacing, r
   );
   assert.equal(
     designSystemTokens.components.readingFontSizeControl.buttonSize,
+    28,
+  );
+  assert.deepEqual(readerHorizontalMarginOptions, [
+    designSystemTokens.spacing[4],
+    designSystemTokens.spacing[5],
+    designSystemTokens.spacing[6],
+  ]);
+  assert.equal(
+    designSystemTokens.components.readingLayoutControl.optionHeight,
     28,
   );
 });

@@ -2,9 +2,13 @@ import type { Theme as CoreTheme } from '@epubjs-react-native/core';
 
 import type { ReaderTableOfContentsEntry } from '@/application';
 import {
+  defaultReaderHorizontalMargin,
+  defaultReaderLineSpacing,
   err,
   ok,
   type ReaderFontSize,
+  type ReaderHorizontalMargin,
+  type ReaderLineSpacing,
   type Result,
 } from '@/domain';
 import {
@@ -42,6 +46,24 @@ export const epubCoreThemes: Record<ReadingThemeName, CoreTheme> = {
 
 export function formatEpubFontSize(fontSize: ReaderFontSize): string {
   return String(fontSize) + 'px';
+}
+
+export function createEpubHorizontalMarginInjection(
+  margin: ReaderHorizontalMargin,
+): string {
+  return createEpubLayoutInjection(
+    '--reebbon-horizontal-margin',
+    String(margin) + 'px',
+  );
+}
+
+export function createEpubLineSpacingInjection(
+  lineSpacing: ReaderLineSpacing,
+): string {
+  return createEpubLayoutInjection(
+    '--reebbon-line-spacing',
+    String(lineSpacing),
+  );
 }
 
 export function parseEpubTableOfContents(
@@ -168,6 +190,10 @@ function createCoreTheme(name: ReadingThemeName): CoreTheme {
     `color ${designSystemTokens.motion.readingThemeTransition}ms ${designSystemTokens.motion.readingThemeEasing}`,
   ].join(', ');
   return {
+    html: {
+      '--reebbon-horizontal-margin': `${defaultReaderHorizontalMargin}px`,
+      '--reebbon-line-spacing': String(defaultReaderLineSpacing),
+    },
     body: {
       color: theme.text,
       background: theme.background,
@@ -175,10 +201,10 @@ function createCoreTheme(name: ReadingThemeName): CoreTheme {
       transition,
       'font-family': "'Reebbon Literata', serif",
       'font-size': `${reading.size}px`,
-      'line-height': `${reading.lineHeight}px`,
+      'line-height': 'var(--reebbon-line-spacing)',
       'letter-spacing': `${reading.tracking}px`,
-      'padding-left': `${designSystemTokens.spacing[5]}px`,
-      'padding-right': `${designSystemTokens.spacing[5]}px`,
+      'padding-left': 'var(--reebbon-horizontal-margin)',
+      'padding-right': 'var(--reebbon-horizontal-margin)',
     },
     a: {
       color: theme.accent,
@@ -190,6 +216,16 @@ function createCoreTheme(name: ReadingThemeName): CoreTheme {
       'object-fit': 'contain',
     },
   };
+}
+
+function createEpubLayoutInjection(property: string, value: string): string {
+  return `
+    rendition.themes.override(${JSON.stringify(property)}, ${JSON.stringify(value)}, true);
+    rendition.views().forEach(function (view) {
+      if (view.pane) view.pane.render();
+    });
+    true;
+  `;
 }
 
 interface ValidatedCoreLocation {

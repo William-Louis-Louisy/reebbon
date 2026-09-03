@@ -22,6 +22,7 @@ test('a format adapter can implement the common Reader contract without framewor
       tableOfContents: true,
       continuousScroll: true,
       fontCustomization: false,
+      layoutCustomization: false,
       zoom: true,
       configurableReadingDirection: false,
       doublePage: false,
@@ -66,6 +67,8 @@ test('a format adapter can implement the common Reader contract without framewor
   assert.equal(reader.capabilities.zoom, true);
   assert.equal(reader.capabilities.fontCustomization, false);
   assert.equal(reader.fontCustomization, undefined);
+  assert.equal(reader.capabilities.layoutCustomization, false);
+  assert.equal(reader.layoutCustomization, undefined);
   assert.equal(selectedTheme, 'night');
   assert.equal(progress.ok, true);
   if (progress.ok) {

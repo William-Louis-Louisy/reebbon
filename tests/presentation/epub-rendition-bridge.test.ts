@@ -3,7 +3,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { defaultReaderFontSize, err, ok } from '../../src/domain';
+import {
+  defaultReaderFontSize,
+  defaultReaderHorizontalMargin,
+  defaultReaderLineSpacing,
+  err,
+  ok,
+} from '../../src/domain';
 import {
   EpubRenditionBridge,
   type EpubRenditionControls,
@@ -42,6 +48,8 @@ test('rendition bridge delegates page, CFI, and theme commands only when ready',
     goNext: () => calls.push('next'),
     changeTheme: (theme) => calls.push(`theme:${theme}`),
     changeFontSize: (fontSize) => calls.push(`font-size:${fontSize}`),
+    changeHorizontalMargin: (margin) => calls.push(`margin:${margin}`),
+    changeLineSpacing: (lineSpacing) => calls.push(`spacing:${lineSpacing}`),
   };
   bridge.attachControls(controls);
 
@@ -55,12 +63,22 @@ test('rendition bridge delegates page, CFI, and theme commands only when ready',
   assert.deepEqual(await bridge.goTo('epubcfi(/6/4!/4/2/2)'), ok(undefined));
   assert.deepEqual(await bridge.setTheme('paper'), ok(undefined));
   assert.deepEqual(await bridge.setFontSize(defaultReaderFontSize), ok(undefined));
+  assert.deepEqual(
+    await bridge.setHorizontalMargin(defaultReaderHorizontalMargin),
+    ok(undefined),
+  );
+  assert.deepEqual(
+    await bridge.setLineSpacing(defaultReaderLineSpacing),
+    ok(undefined),
+  );
   assert.deepEqual(calls, [
     'previous',
     'next',
     'go:epubcfi(/6/4!/4/2/2)',
     'theme:paper',
     'font-size:17',
+    'margin:24',
+    'spacing:1.7',
   ]);
 });
 
@@ -73,6 +91,8 @@ test('rendition bridge keeps EPUB href targets private behind reader TOC entries
     goNext() {},
     changeTheme() {},
     changeFontSize() {},
+    changeHorizontalMargin() {},
+    changeLineSpacing() {},
   });
 
   const opening = bridge.open('file:///books/book.epub');

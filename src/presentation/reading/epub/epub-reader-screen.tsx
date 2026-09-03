@@ -20,8 +20,12 @@ import {
   type ReaderTableOfContentsEntry,
 } from '@/application';
 import {
+  defaultReaderHorizontalMargin,
+  defaultReaderLineSpacing,
   stepReaderFontSize,
   type ReaderFontSize,
+  type ReaderHorizontalMargin,
+  type ReaderLineSpacing,
 } from '@/domain';
 import {
   designSystemTokens,
@@ -31,10 +35,13 @@ import {
 
 import { AppText } from '../../components/app-text';
 import { EpubFontSizeControl } from './epub-font-size-control';
+import { EpubLayoutControl } from './epub-layout-control';
 import { EpubRenditionBridge } from './epub-rendition-bridge';
 import { EpubReadingThemeSelector } from './epub-reading-theme-selector';
 import { EpubTableOfContentsSheet } from './epub-table-of-contents-sheet';
 import {
+  createEpubHorizontalMarginInjection,
+  createEpubLineSpacingInjection,
   createLiterataInjection,
   epubCoreThemes,
   formatEpubFontSize,
@@ -81,6 +88,7 @@ function EpubReaderSession({
     goNext,
     goPrevious,
     goToLocation,
+    injectJavascript,
   } = coreReader;
   const snapshot = useSyncExternalStore(
     bridge.subscribe,
@@ -98,6 +106,10 @@ function EpubReaderSession({
   const [readingThemeName, setReadingThemeName] =
     useState<ReadingThemeName>('paper');
   const [fontSize, setFontSize] = useState(initialFontSize);
+  const [horizontalMargin, setHorizontalMargin] =
+    useState<ReaderHorizontalMargin>(defaultReaderHorizontalMargin);
+  const [lineSpacing, setLineSpacing] =
+    useState<ReaderLineSpacing>(defaultReaderLineSpacing);
   const readingTheme = readingThemes[readingThemeName];
   const folio = getEpubFolio(snapshot.location);
 
@@ -108,6 +120,10 @@ function EpubReaderSession({
       goNext,
       changeTheme: (theme) => changeTheme(epubCoreThemes[theme]),
       changeFontSize: (size) => changeFontSize(formatEpubFontSize(size)),
+      changeHorizontalMargin: (margin) =>
+        injectJavascript(createEpubHorizontalMarginInjection(margin)),
+      changeLineSpacing: (spacing) =>
+        injectJavascript(createEpubLineSpacingInjection(spacing)),
     }), [
     bridge,
     changeFontSize,
@@ -115,6 +131,7 @@ function EpubReaderSession({
     goNext,
     goPrevious,
     goToLocation,
+    injectJavascript,
   ]);
 
   useEffect(() => {
@@ -196,9 +213,16 @@ function EpubReaderSession({
     }
     void Promise.resolve().then(() => {
       if (ready) {
-        void reader.setTheme(readingThemeName).then(() =>
-          reader.fontCustomization?.setFontSize(fontSize),
-        );
+        void reader.setTheme(readingThemeName).then((result) => {
+          if (!result.ok) {
+            return;
+          }
+          void Promise.all([
+            reader.fontCustomization?.setFontSize(fontSize),
+            reader.layoutCustomization?.setHorizontalMargin(horizontalMargin),
+            reader.layoutCustomization?.setLineSpacing(lineSpacing),
+          ]);
+        });
       }
       updateProgress();
       if (ready) {
@@ -239,6 +263,38 @@ function EpubReaderSession({
       if (result.ok) {
         setFontSize(nextFontSize);
         onFontSizeChange(nextFontSize);
+      }
+    });
+  };
+
+  const selectHorizontalMargin = (nextMargin: ReaderHorizontalMargin) => {
+    const customization = reader.layoutCustomization;
+    if (
+      customization === undefined ||
+      nextMargin === horizontalMargin ||
+      snapshot.status !== 'ready'
+    ) {
+      return;
+    }
+    void customization.setHorizontalMargin(nextMargin).then((result) => {
+      if (result.ok) {
+        setHorizontalMargin(nextMargin);
+      }
+    });
+  };
+
+  const selectLineSpacing = (nextLineSpacing: ReaderLineSpacing) => {
+    const customization = reader.layoutCustomization;
+    if (
+      customization === undefined ||
+      nextLineSpacing === lineSpacing ||
+      snapshot.status !== 'ready'
+    ) {
+      return;
+    }
+    void customization.setLineSpacing(nextLineSpacing).then((result) => {
+      if (result.ok) {
+        setLineSpacing(nextLineSpacing);
       }
     });
   };
@@ -370,6 +426,32 @@ function EpubReaderSession({
             ) : null}
           </View>
 
+          <View style={styles.personalizationBar}>
+            {reader.fontCustomization === undefined ? null : (
+              <EpubFontSizeControl
+                disabled={snapshot.status !== 'ready'}
+                fontSize={fontSize}
+                onDecrease={() =>
+                  selectFontSize(stepReaderFontSize(fontSize, 'decrease'))
+                }
+                onIncrease={() =>
+                  selectFontSize(stepReaderFontSize(fontSize, 'increase'))
+                }
+                themeName={readingThemeName}
+              />
+            )}
+            {reader.layoutCustomization === undefined ? null : (
+              <EpubLayoutControl
+                disabled={snapshot.status !== 'ready'}
+                horizontalMargin={horizontalMargin}
+                lineSpacing={lineSpacing}
+                onHorizontalMarginChange={selectHorizontalMargin}
+                onLineSpacingChange={selectLineSpacing}
+                themeName={readingThemeName}
+              />
+            )}
+          </View>
+
           <View style={styles.bottomBar}>
             <ReaderButton
               color={readingTheme.text}
@@ -378,35 +460,17 @@ function EpubReaderSession({
               onPress={() => bridge.previousPage()}
               shortLabel="‹"
             />
-            <View style={styles.centerControls}>
-              {reader.fontCustomization === undefined ? null : (
-                <EpubFontSizeControl
-                  disabled={snapshot.status !== 'ready'}
-                  fontSize={fontSize}
-                  onDecrease={() =>
-                    selectFontSize(stepReaderFontSize(fontSize, 'decrease'))
-                  }
-                  onIncrease={() =>
-                    selectFontSize(stepReaderFontSize(fontSize, 'increase'))
-                  }
-                  themeName={readingThemeName}
-                />
-              )}
-              <View accessibilityLiveRegion="polite" style={styles.folio}>
-                <AppText style={{ color: readingTheme.text }} variant="folio">
-                  {folio === undefined
-                    ? '— / —'
-                    : `${folio.current} / ${folio.total}`}
-                </AppText>
-                <AppText
-                  style={[
-                    styles.readerMutedText,
-                    { color: readingTheme.text },
-                  ]}
-                  variant="folio">
-                  {Math.round(completionRatio * 100)}%
-                </AppText>
-              </View>
+            <View accessibilityLiveRegion="polite" style={styles.folio}>
+              <AppText style={{ color: readingTheme.text }} variant="folio">
+                {folio === undefined
+                  ? '— / —'
+                  : `${folio.current} / ${folio.total}`}
+              </AppText>
+              <AppText
+                style={[styles.readerMutedText, { color: readingTheme.text }]}
+                variant="folio">
+                {Math.round(completionRatio * 100)}%
+              </AppText>
             </View>
             <ReaderButton
               color={readingTheme.text}
@@ -580,9 +644,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: designSystemTokens.spacing[2],
   },
-  centerControls: {
+  personalizationBar: {
+    paddingHorizontal: designSystemTokens.spacing[4],
+    paddingTop: designSystemTokens.spacing[2],
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: designSystemTokens.spacing[1],
+    justifyContent: 'center',
+    gap: designSystemTokens.spacing[2],
   },
   folio: {
     alignItems: 'center',

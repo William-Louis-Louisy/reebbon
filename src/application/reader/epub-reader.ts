@@ -1,10 +1,14 @@
 import {
   err,
+  isReaderHorizontalMargin,
+  isReaderLineSpacing,
   isReaderFontSize,
   isValidEpubCfi,
   ok,
   type ReadingTheme,
   type ReaderFontSize,
+  type ReaderHorizontalMargin,
+  type ReaderLineSpacing,
   type Result,
 } from '../../domain';
 
@@ -43,6 +47,12 @@ export interface EpubRendition {
   setFontSize(
     fontSize: ReaderFontSize,
   ): Promise<Result<void, EpubRenditionError>>;
+  setHorizontalMargin(
+    margin: ReaderHorizontalMargin,
+  ): Promise<Result<void, EpubRenditionError>>;
+  setLineSpacing(
+    lineSpacing: ReaderLineSpacing,
+  ): Promise<Result<void, EpubRenditionError>>;
   close(): Promise<Result<void, EpubRenditionError>>;
 }
 
@@ -50,6 +60,7 @@ export const epubReaderCapabilities = {
   tableOfContents: true,
   continuousScroll: true,
   fontCustomization: true,
+  layoutCustomization: true,
   zoom: false,
   configurableReadingDirection: false,
   doublePage: false,
@@ -99,6 +110,26 @@ export function createEpubReader(rendition: EpubRendition): Reader<'epub'> {
           return err({ kind: 'invalid-font-size', fontSize });
         }
         return callRendition(() => rendition.setFontSize(fontSize));
+      },
+    },
+    layoutCustomization: {
+      async setHorizontalMargin(margin) {
+        if (state !== 'open') {
+          return err({ kind: 'not-open' });
+        }
+        if (!isReaderHorizontalMargin(margin)) {
+          return err({ kind: 'invalid-horizontal-margin', margin });
+        }
+        return callRendition(() => rendition.setHorizontalMargin(margin));
+      },
+      async setLineSpacing(lineSpacing) {
+        if (state !== 'open') {
+          return err({ kind: 'not-open' });
+        }
+        if (!isReaderLineSpacing(lineSpacing)) {
+          return err({ kind: 'invalid-line-spacing', lineSpacing });
+        }
+        return callRendition(() => rendition.setLineSpacing(lineSpacing));
       },
     },
     tableOfContents,

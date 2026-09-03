@@ -196,6 +196,13 @@ export const designSystemTokens = {
       touchTargetSize: 44,
       valueMinWidth: 32,
     },
+    readingLayoutControl: {
+      labelMinWidth: 72,
+      optionWidth: 40,
+      optionHeight: 28,
+      selectedBorderWidth: 1.5,
+      touchTargetSize: 44,
+    },
     readingThemeSelector: {
       controlSize: 32,
       dotSize: 18,
