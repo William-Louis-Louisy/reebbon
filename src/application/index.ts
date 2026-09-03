@@ -33,6 +33,13 @@ export type {
   ApplicationPreferenceRepository,
 } from './preferences/application-preference-repository';
 export {
+  createAppColorSchemePreferenceService,
+  type AppColorSchemePreferenceService,
+  type AppColorSchemePreferenceServiceDependencies,
+  type AppColorSchemePreferenceServiceError,
+  type InvalidAppColorSchemePreferenceError,
+} from './preferences/app-color-scheme-preference-service';
+export {
   createEpubFontSizePreferenceService,
   type EpubFontSizePreferenceService,
   type EpubFontSizePreferenceServiceDependencies,

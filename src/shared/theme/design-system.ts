@@ -1,4 +1,6 @@
-export type AppColorScheme = 'light' | 'dark';
+import type { AppColorScheme } from '@/domain';
+
+export type { AppColorScheme } from '@/domain';
 export type ReadingThemeName = 'paper' | 'sepia' | 'night';
 
 export const runtimeFontFamilies = {
@@ -188,6 +190,11 @@ export const designSystemTokens = {
     },
   },
   components: {
+    appColorSchemeControl: {
+      borderWidth: 1,
+      optionMinWidth: 88,
+      touchTargetSize: 44,
+    },
     readerChrome: {
       mutedOpacity: 0.7,
     },
