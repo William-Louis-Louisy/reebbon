@@ -19,10 +19,15 @@ import {
   type Reader,
   type ReaderTableOfContentsEntry,
 } from '@/application';
-import { designSystemTokens, readingThemes } from '@/shared/theme';
+import {
+  designSystemTokens,
+  readingThemes,
+  type ReadingThemeName,
+} from '@/shared/theme';
 
 import { AppText } from '../../components/app-text';
 import { EpubRenditionBridge } from './epub-rendition-bridge';
+import { EpubReadingThemeSelector } from './epub-reading-theme-selector';
 import { EpubTableOfContentsSheet } from './epub-table-of-contents-sheet';
 import {
   createLiterataInjection,
@@ -76,6 +81,9 @@ function EpubReaderSession({
     readonly ReaderTableOfContentsEntry[]
   >([]);
   const [isTableOfContentsVisible, setIsTableOfContentsVisible] = useState(false);
+  const [readingThemeName, setReadingThemeName] =
+    useState<ReadingThemeName>('paper');
+  const readingTheme = readingThemes[readingThemeName];
   const folio = getEpubFolio(snapshot.location);
 
   useEffect(() =>
@@ -166,11 +174,13 @@ function EpubReaderSession({
     }
     if (ready) {
       bridge.reportReady(parsed.value);
-      void reader.setTheme('paper');
     } else {
       bridge.reportLocation(parsed.value);
     }
     void Promise.resolve().then(() => {
+      if (ready) {
+        void reader.setTheme(readingThemeName);
+      }
       updateProgress();
       if (ready) {
         updateTableOfContents();
@@ -182,6 +192,17 @@ function EpubReaderSession({
     void reader.tableOfContents?.goToEntry(entryId).then((result) => {
       if (result.ok) {
         setIsTableOfContentsVisible(false);
+      }
+    });
+  };
+
+  const selectReadingTheme = (theme: ReadingThemeName) => {
+    if (theme === readingThemeName || snapshot.status !== 'ready') {
+      return;
+    }
+    void reader.setTheme(theme).then((result) => {
+      if (result.ok) {
+        setReadingThemeName(theme);
       }
     });
   };
@@ -223,7 +244,7 @@ function EpubReaderSession({
       <View
         style={[
           styles.screen,
-          { backgroundColor: readingThemes.paper.background },
+          { backgroundColor: readingTheme.background },
         ]}>
         <SafeAreaView
           edges={['top', 'bottom', 'left', 'right']}
@@ -231,92 +252,110 @@ function EpubReaderSession({
           <View style={styles.topBar}>
             <AppText
               numberOfLines={1}
-              style={[styles.bookTitle, styles.readerText]}
+              style={[styles.bookTitle, { color: readingTheme.text }]}
               variant="eyebrow">
               {book.title}
             </AppText>
+            <EpubReadingThemeSelector
+              disabled={snapshot.status !== 'ready'}
+              onSelect={selectReadingTheme}
+              selectedTheme={readingThemeName}
+            />
             {tableOfContentsEntries.length > 0 ? (
               <ReaderButton
+                color={readingTheme.text}
                 label="Sommaire"
                 onPress={() => setIsTableOfContentsVisible(true)}
               />
             ) : null}
-            <ReaderButton label="Fermer" onPress={close} />
+            <ReaderButton
+              color={readingTheme.text}
+              label="Fermer"
+              onPress={close}
+            />
           </View>
 
           <View style={styles.rendition}>
             {snapshot.status === 'failure' || preparationError !== undefined ? (
-              <ReaderFailure onClose={close} onRetry={retry} />
+              <ReaderFailure
+                onClose={close}
+                onRetry={retry}
+                themeName={readingThemeName}
+              />
             ) : null}
             {snapshot.sourceUri !== undefined && fontDataUri !== undefined ? (
-              <CoreReader
-              key={snapshot.sessionId}
-              allowPopups={false}
-              allowScriptedContent={false}
-              defaultTheme={epubCoreThemes.paper}
-              enableSelection={false}
-              enableSwipe
-              fileSystem={fileSystem}
-              flow="paginated"
-              height="100%"
-              initialLocation={snapshot.initialCfi}
-              injectedJavascript={createLiterataInjection(fontDataUri)}
-              manager="default"
-              onDisplayError={() =>
-                bridge.reportFailure({ kind: 'rendering-failure' })
-              }
-              onLocationChange={(total, location, progress) =>
-                reportLocation(total, location, progress, 'percentage', false)
-              }
-              onNavigationLoaded={({ toc }) => {
-                const parsed = parseEpubTableOfContents(toc);
-                bridge.reportTableOfContents(
-                  parsed.ok ? parsed.value.entries : [],
-                  parsed.ok ? parsed.value.targets : {},
-                );
-                void Promise.resolve().then(updateTableOfContents);
-              }}
-              onLocationsReady={(_key, locations) => {
-                const current = bridge.getSnapshot().location;
-                if (current !== undefined) {
-                  bridge.reportLocation({
-                    ...current,
-                    totalLocations: locations.length,
-                  });
-                }
-              }}
-              onReady={(total, location, progress) =>
-                reportLocation(total, location, progress, 'ratio', true)
-              }
-              snap
-              spread="none"
-              src={snapshot.sourceUri}
-              width="100%"
+                <CoreReader
+                  key={snapshot.sessionId}
+                  allowPopups={false}
+                  allowScriptedContent={false}
+                  defaultTheme={epubCoreThemes.paper}
+                  enableSelection={false}
+                  enableSwipe
+                  fileSystem={fileSystem}
+                  flow="paginated"
+                  height="100%"
+                  initialLocation={snapshot.initialCfi}
+                  injectedJavascript={createLiterataInjection(fontDataUri)}
+                  manager="default"
+                  onDisplayError={() =>
+                    bridge.reportFailure({ kind: 'rendering-failure' })
+                  }
+                  onLocationChange={(total, location, progress) =>
+                    reportLocation(total, location, progress, 'percentage', false)
+                  }
+                  onNavigationLoaded={({ toc }) => {
+                    const parsed = parseEpubTableOfContents(toc);
+                    bridge.reportTableOfContents(
+                      parsed.ok ? parsed.value.entries : [],
+                      parsed.ok ? parsed.value.targets : {},
+                    );
+                    void Promise.resolve().then(updateTableOfContents);
+                  }}
+                  onLocationsReady={(_key, locations) => {
+                    const current = bridge.getSnapshot().location;
+                    if (current !== undefined) {
+                      bridge.reportLocation({
+                        ...current,
+                        totalLocations: locations.length,
+                      });
+                    }
+                  }}
+                  onReady={(total, location, progress) =>
+                    reportLocation(total, location, progress, 'ratio', true)
+                  }
+                  snap
+                  spread="none"
+                  src={snapshot.sourceUri}
+                  width="100%"
               />
             ) : null}
             {isPreparing || snapshot.status === 'opening' ? (
-              <ReaderLoading />
+              <ReaderLoading themeName={readingThemeName} />
             ) : null}
           </View>
 
           <View style={styles.bottomBar}>
             <ReaderButton
+              color={readingTheme.text}
               disabled={snapshot.status !== 'ready'}
               label="Page précédente"
               onPress={() => bridge.previousPage()}
               shortLabel="‹"
             />
             <View accessibilityLiveRegion="polite" style={styles.folio}>
-              <AppText style={styles.readerText} variant="folio">
+              <AppText style={{ color: readingTheme.text }} variant="folio">
                 {folio === undefined
                   ? '— / —'
                   : `${folio.current} / ${folio.total}`}
               </AppText>
-              <AppText style={styles.readerMutedText} variant="folio">
+              <AppText
+                style={[styles.readerMutedText, { color: readingTheme.text }]}
+                variant="folio">
                 {Math.round(completionRatio * 100)}%
               </AppText>
             </View>
             <ReaderButton
+              color={readingTheme.text}
               disabled={snapshot.status !== 'ready'}
               label="Page suivante"
               onPress={() => bridge.nextPage()}
@@ -329,6 +368,7 @@ function EpubReaderSession({
         entries={tableOfContentsEntries}
         onClose={() => setIsTableOfContentsVisible(false)}
         onSelect={selectTableOfContentsEntry}
+        themeName={readingThemeName}
         visible={isTableOfContentsVisible}
       />
     </>
@@ -372,11 +412,20 @@ async function loadSessionResources(
   }
 }
 
-function ReaderLoading() {
+interface ReaderThemeProps {
+  readonly themeName: ReadingThemeName;
+}
+
+function ReaderLoading({ themeName }: ReaderThemeProps) {
+  const theme = readingThemes[themeName];
   return (
-    <View accessibilityLiveRegion="polite" style={styles.overlay}>
-      <ActivityIndicator color={designSystemTokens.colors.oxblood} />
-      <AppText style={styles.readerMutedText}>Ouverture de l’EPUB…</AppText>
+    <View
+      accessibilityLiveRegion="polite"
+      style={[styles.overlay, { backgroundColor: theme.background }]}>
+      <ActivityIndicator color={theme.accent} />
+      <AppText style={[styles.readerMutedText, { color: theme.text }]}>
+        Ouverture de l’EPUB…
+      </AppText>
     </View>
   );
 }
@@ -384,26 +433,36 @@ function ReaderLoading() {
 interface ReaderFailureProps {
   readonly onClose: () => void;
   readonly onRetry: () => void;
+  readonly themeName: ReadingThemeName;
 }
 
-function ReaderFailure({ onClose, onRetry }: ReaderFailureProps) {
+function ReaderFailure({ onClose, onRetry, themeName }: ReaderFailureProps) {
+  const theme = readingThemes[themeName];
   return (
-    <View accessibilityLiveRegion="assertive" style={styles.overlay}>
-      <AppText style={styles.readerText} variant="quote">
+    <View
+      accessibilityLiveRegion="assertive"
+      style={[styles.overlay, { backgroundColor: theme.background }]}>
+      <AppText style={{ color: theme.text }} variant="quote">
         Cet EPUB ne peut pas être affiché.
       </AppText>
-      <AppText style={[styles.failureCopy, styles.readerMutedText]}>
+      <AppText
+        style={[
+          styles.failureCopy,
+          styles.readerMutedText,
+          { color: theme.text },
+        ]}>
         Le fichier est peut-être endommagé ou incompatible avec le moteur de lecture.
       </AppText>
       <View style={styles.failureActions}>
-        <ReaderButton label="Fermer" onPress={onClose} />
-        <ReaderButton label="Réessayer" onPress={onRetry} />
+        <ReaderButton color={theme.text} label="Fermer" onPress={onClose} />
+        <ReaderButton color={theme.text} label="Réessayer" onPress={onRetry} />
       </View>
     </View>
   );
 }
 
 interface ReaderButtonProps {
+  readonly color: string;
   readonly disabled?: boolean;
   readonly label: string;
   readonly onPress: () => void;
@@ -411,6 +470,7 @@ interface ReaderButtonProps {
 }
 
 function ReaderButton({
+  color,
   disabled = false,
   label,
   onPress,
@@ -430,7 +490,7 @@ function ReaderButton({
         disabled && styles.controlDisabled,
       ]}>
       <AppText
-        style={styles.readerText}
+        style={{ color }}
         variant={shortLabel === undefined ? 'button' : 'screenTitle'}>
         {shortLabel ?? label}
       </AppText>
@@ -494,7 +554,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: designSystemTokens.spacing[3],
-    backgroundColor: readingThemes.paper.background,
   },
   failureCopy: {
     maxWidth: designSystemTokens.spacing[8] * 5,
@@ -504,10 +563,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: designSystemTokens.spacing[3],
   },
-  readerText: {
-    color: readingThemes.paper.text,
-  },
   readerMutedText: {
-    color: designSystemTokens.colors.paperTextSoft,
+    opacity: designSystemTokens.components.readerChrome.mutedOpacity,
   },
 });

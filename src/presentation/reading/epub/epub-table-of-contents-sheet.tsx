@@ -2,7 +2,11 @@ import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { ReaderTableOfContentsEntry } from '@/application';
-import { designSystemTokens, readingThemes } from '@/shared/theme';
+import {
+  designSystemTokens,
+  readingThemes,
+  type ReadingThemeName,
+} from '@/shared/theme';
 
 import { AppText } from '../../components/app-text';
 
@@ -10,6 +14,7 @@ interface EpubTableOfContentsSheetProps {
   readonly entries: readonly ReaderTableOfContentsEntry[];
   readonly onClose: () => void;
   readonly onSelect: (entryId: string) => void;
+  readonly themeName: ReadingThemeName;
   readonly visible: boolean;
 }
 
@@ -17,8 +22,10 @@ export function EpubTableOfContentsSheet({
   entries,
   onClose,
   onSelect,
+  themeName,
   visible,
 }: EpubTableOfContentsSheetProps) {
+  const theme = readingThemes[themeName];
   return (
     <Modal
       animationType="none"
@@ -28,14 +35,16 @@ export function EpubTableOfContentsSheet({
       <SafeAreaView
         accessibilityViewIsModal
         edges={['top', 'bottom', 'left', 'right']}
-        style={styles.screen}>
+        style={[styles.screen, { backgroundColor: theme.background }]}>
         <View style={styles.content}>
-          <View style={styles.header}>
+          <View style={[styles.header, { borderBottomColor: theme.border }]}>
             <View style={styles.heading}>
-              <AppText style={styles.mutedText} variant="eyebrow">
+              <AppText
+                style={[styles.mutedText, { color: theme.text }]}
+                variant="eyebrow">
                 Navigation
               </AppText>
-              <AppText style={styles.text} variant="screenTitle">
+              <AppText style={{ color: theme.text }} variant="screenTitle">
                 Table des matières
               </AppText>
             </View>
@@ -48,7 +57,7 @@ export function EpubTableOfContentsSheet({
                 styles.closeButton,
                 pressed && styles.pressed,
               ]}>
-              <AppText style={styles.text} variant="button">
+              <AppText style={{ color: theme.text }} variant="button">
                 Fermer
               </AppText>
             </Pressable>
@@ -59,7 +68,11 @@ export function EpubTableOfContentsSheet({
             data={entries}
             keyExtractor={(entry) => entry.id}
             renderItem={({ item }) => (
-              <TableOfContentsRow entry={item} onSelect={onSelect} />
+              <TableOfContentsRow
+                entry={item}
+                onSelect={onSelect}
+                themeName={themeName}
+              />
             )}
           />
         </View>
@@ -71,9 +84,15 @@ export function EpubTableOfContentsSheet({
 interface TableOfContentsRowProps {
   readonly entry: ReaderTableOfContentsEntry;
   readonly onSelect: (entryId: string) => void;
+  readonly themeName: ReadingThemeName;
 }
 
-function TableOfContentsRow({ entry, onSelect }: TableOfContentsRowProps) {
+function TableOfContentsRow({
+  entry,
+  onSelect,
+  themeName,
+}: TableOfContentsRowProps) {
+  const theme = readingThemes[themeName];
   const indentation =
     designSystemTokens.spacing[4] +
     Math.min(entry.depth, 4) * designSystemTokens.spacing[4];
@@ -86,10 +105,12 @@ function TableOfContentsRow({ entry, onSelect }: TableOfContentsRowProps) {
       onPress={() => onSelect(entry.id)}
       style={({ pressed }) => [
         styles.row,
-        { paddingLeft: indentation },
+        { borderBottomColor: theme.border, paddingLeft: indentation },
         pressed && styles.pressed,
       ]}>
-      <AppText style={styles.text} variant={entry.depth === 0 ? 'label' : 'body'}>
+      <AppText
+        style={{ color: theme.text }}
+        variant={entry.depth === 0 ? 'label' : 'body'}>
         {entry.label}
       </AppText>
     </Pressable>
@@ -99,7 +120,6 @@ function TableOfContentsRow({ entry, onSelect }: TableOfContentsRowProps) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: readingThemes.paper.background,
   },
   content: {
     flex: 1,
@@ -115,7 +135,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: designSystemTokens.spacing[4],
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: readingThemes.paper.border,
   },
   heading: {
     flex: 1,
@@ -138,16 +157,12 @@ const styles = StyleSheet.create({
     paddingBottom: designSystemTokens.spacing[3],
     justifyContent: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: readingThemes.paper.border,
   },
   pressed: {
     opacity: designSystemTokens.interaction.pressedOpacity,
     transform: [{ scale: designSystemTokens.interaction.pressedScale }],
   },
-  text: {
-    color: readingThemes.paper.text,
-  },
   mutedText: {
-    color: designSystemTokens.colors.paperTextSoft,
+    opacity: designSystemTokens.components.readerChrome.mutedOpacity,
   },
 });

@@ -3,7 +3,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { appUiThemes, designSystemTokens, getNavigationTheme } from '../../../src/shared/theme';
+import {
+  appUiThemes,
+  designSystemTokens,
+  getNavigationTheme,
+  readingThemes,
+} from '../../../src/shared/theme';
 
 test('design system tokens expose the Reebbon palette, type families, spacing, radii, and motion', () => {
   assert.equal(designSystemTokens.colors.ink, '#35304C');
@@ -12,10 +17,23 @@ test('design system tokens expose the Reebbon palette, type families, spacing, r
   assert.equal(designSystemTokens.spacing[4], 16);
   assert.equal(designSystemTokens.radii.md, 14);
   assert.equal(designSystemTokens.motion.uiTransition, 260);
+  assert.equal(designSystemTokens.motion.readingThemeTransition, 480);
+  assert.equal(
+    designSystemTokens.motion.readingThemeEasing,
+    'cubic-bezier(.22,.61,.36,1)',
+  );
   assert.equal(designSystemTokens.typography.families.display, 'Fraunces');
   assert.equal(designSystemTokens.typography.families.ui, 'Public Sans');
   assert.equal(designSystemTokens.typography.families.reading, 'Literata');
   assert.equal(designSystemTokens.typography.families.mono, 'IBM Plex Mono');
+});
+
+test('reading themes remain independent from application light and dark chrome', () => {
+  assert.equal(readingThemes.paper.background, designSystemTokens.colors.paper);
+  assert.equal(readingThemes.sepia.background, designSystemTokens.colors.sepia);
+  assert.equal(readingThemes.night.background, designSystemTokens.colors.night);
+  assert.equal(readingThemes.night.accent, designSystemTokens.colors.oxbloodTint);
+  assert.notEqual(readingThemes.night.background, appUiThemes.dark.background);
 });
 
 test('application UI themes derive light chrome from Paper and dark chrome from Walnut', () => {

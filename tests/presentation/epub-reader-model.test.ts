@@ -60,12 +60,19 @@ test('WebView locations are validated and normalize both epub.js progress units'
 });
 
 test('reader themes preserve semantic surfaces and contrast for EPUB content', () => {
-  assert.equal(epubCoreThemes.paper.body?.background, readingThemes.paper.background);
-  assert.equal(epubCoreThemes.sepia.body?.color, readingThemes.sepia.text);
-  assert.equal(epubCoreThemes.night.body?.background, readingThemes.night.background);
+  const transition = [
+    `background-color ${designSystemTokens.motion.readingThemeTransition}ms ${designSystemTokens.motion.readingThemeEasing}`,
+    `color ${designSystemTokens.motion.readingThemeTransition}ms ${designSystemTokens.motion.readingThemeEasing}`,
+  ].join(', ');
+
+  for (const name of ['paper', 'sepia', 'night'] as const) {
+    assert.equal(epubCoreThemes[name].body?.background, readingThemes[name].background);
+    assert.equal(epubCoreThemes[name].body?.color, readingThemes[name].text);
+    assert.equal(epubCoreThemes[name].body?.transition, transition);
+  }
   assert.equal(
     epubCoreThemes.night.a?.color,
-    designSystemTokens.colors.oxbloodTint,
+    readingThemes.night.accent,
   );
 });
 

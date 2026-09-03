@@ -154,10 +154,16 @@ export function getEpubFolio(
 function createCoreTheme(name: ReadingThemeName): CoreTheme {
   const theme = readingThemes[name];
   const reading = designSystemTokens.typography.roles.reading;
+  const transition = [
+    `background-color ${designSystemTokens.motion.readingThemeTransition}ms ${designSystemTokens.motion.readingThemeEasing}`,
+    `color ${designSystemTokens.motion.readingThemeTransition}ms ${designSystemTokens.motion.readingThemeEasing}`,
+  ].join(', ');
   return {
     body: {
       color: theme.text,
       background: theme.background,
+      'background-color': theme.background,
+      transition,
       'font-family': "'Reebbon Literata', serif",
       'font-size': `${reading.size}px`,
       'line-height': `${reading.lineHeight}px`,
@@ -166,9 +172,8 @@ function createCoreTheme(name: ReadingThemeName): CoreTheme {
       'padding-right': `${designSystemTokens.spacing[5]}px`,
     },
     a: {
-      color: name === 'night'
-        ? designSystemTokens.colors.oxbloodTint
-        : designSystemTokens.colors.oxblood,
+      color: theme.accent,
+      transition: `color ${designSystemTokens.motion.readingThemeTransition}ms ${designSystemTokens.motion.readingThemeEasing}`,
     },
     img: {
       'max-width': '100%',
