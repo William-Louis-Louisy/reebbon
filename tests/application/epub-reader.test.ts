@@ -74,6 +74,8 @@ test('EPUB reader implements the common lifecycle and reports typed CFI progress
   assert.deepEqual(await reader.open(book, initial), ok(undefined));
   assert.deepEqual(await reader.goTo(target), ok(undefined));
   assert.deepEqual(await reader.setTheme('paper'), ok(undefined));
+  assert.deepEqual(await reader.setTheme('sepia'), ok(undefined));
+  assert.deepEqual(await reader.setTheme('night'), ok(undefined));
   assert.deepEqual(await reader.getProgress(), {
     ok: true,
     value: { position: target, completionRatio: 1 },
@@ -83,6 +85,8 @@ test('EPUB reader implements the common lifecycle and reports typed CFI progress
     `open:${book.fileUri}:${initial.cfi}`,
     `go-to:${target.cfi}`,
     'theme:paper',
+    'theme:sepia',
+    'theme:night',
     'get-location',
     'close',
   ]);

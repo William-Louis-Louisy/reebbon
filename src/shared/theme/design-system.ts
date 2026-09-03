@@ -61,6 +61,7 @@ export const designSystemTokens = {
     quickFeedback: 120,
     uiTransition: 260,
     readingThemeTransition: 480,
+    readingThemeEasing: 'cubic-bezier(.22,.61,.36,1)',
   },
   interaction: {
     pressedOpacity: 0.78,
@@ -187,6 +188,14 @@ export const designSystemTokens = {
     },
   },
   components: {
+    readerChrome: {
+      mutedOpacity: 0.7,
+    },
+    readingThemeSelector: {
+      controlSize: 32,
+      dotSize: 18,
+      borderWidth: 1.5,
+    },
     ribbon: {
       width: 20,
       minHeight: 32,
@@ -218,6 +227,7 @@ export type ReadingTheme = {
   readonly background: string;
   readonly surface: string;
   readonly text: string;
+  readonly accent: string;
   readonly border: string;
 };
 
@@ -252,6 +262,7 @@ export const readingThemes: Record<ReadingThemeName, ReadingTheme> = {
     background: colors.paper,
     surface: colors.paper2,
     text: colors.paperText,
+    accent: colors.oxblood,
     border: colors.borderLight,
   },
   sepia: {
@@ -259,6 +270,7 @@ export const readingThemes: Record<ReadingThemeName, ReadingTheme> = {
     background: colors.sepia,
     surface: colors.sepia2,
     text: colors.sepiaText,
+    accent: colors.oxblood,
     border: colors.borderLight,
   },
   night: {
@@ -266,6 +278,7 @@ export const readingThemes: Record<ReadingThemeName, ReadingTheme> = {
     background: colors.night,
     surface: colors.night2,
     text: colors.nightText,
+    accent: colors.oxbloodTint,
     border: colors.borderDark,
   },
 };

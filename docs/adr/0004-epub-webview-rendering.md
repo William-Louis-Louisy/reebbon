@@ -26,3 +26,9 @@ Le premier moteur de lecture doit afficher les EPUB en mode pagine sur iOS et An
 Les tests automatises couvrent le contrat Reader, les messages WebView invalides, le timeout d'un EPUB malforme et une archive de 5 001 pages de spine. Ils ne remplacent pas la mesure du seuil d'ouverture inferieur a une seconde ni la validation gestuelle sur appareils iOS et Android.
 
 La table des matieres, la persistance de position, la personnalisation, le scroll continu et les autres themes restent hors de RDR-EPUB-01. Le modele de capacites annonce les fonctions supportees par epub.js sans les exposer prematurement dans cet ecran.
+
+## Mise a jour PERS-01 - 2026-09-03
+
+Les themes de lecture Paper, Sepia et Night sont selectionnes depuis le chrome du lecteur puis transmis au moteur par le contrat commun `Reader.setTheme`. Les regles epub.js utilisent exclusivement les tokens semantiques de lecture et animent les changements de fond et de texte pendant 480 ms avec la courbe de lecture du design system.
+
+Le theme de lecture est un etat de session distinct du theme clair/sombre de l'application. Cette evolution ne persiste pas le choix, ne modifie pas les couleurs des contenus PDF ou images et n'introduit aucun reglage de personnalisation hors de PERS-01.
