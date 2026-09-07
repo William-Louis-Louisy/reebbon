@@ -1,6 +1,7 @@
 export interface ReaderCapabilities {
   readonly tableOfContents: boolean;
   readonly continuousScroll: boolean;
+  readonly readingThemeCustomization: boolean;
   readonly fontCustomization: boolean;
   readonly layoutCustomization: boolean;
   readonly zoom: boolean;

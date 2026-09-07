@@ -27,3 +27,9 @@ La presentation pourra selectionner un adapter et afficher ses controles par cap
 `setTheme` definit un theme de surface commun. Il ne donne pas l'autorisation de recolorer le contenu PDF ou image ; leur fidelite reste preservee tant qu'une exigence produit contraire n'existe pas.
 
 Cette decision ne fournit aucun renderer, pipeline d'import, transaction, schema SQLite ou ecran. Ces implementations restent dans les Issues des sprints suivants.
+
+## Extension PERS-05 - 2026-09-07
+
+La feuille de reglages commune rend chaque controle a partir de `ReaderCapabilities`. La capacite `readingThemeCustomization` distingue explicitement les readers qui proposent les themes de lecture ; `fontCustomization` et `layoutCustomization` pilotent leurs sections respectives.
+
+Le contrat `setTheme` reste commun pour ne pas casser l'abstraction de surface. Une capacite de theme a `false` interdit toutefois d'exposer ce reglage dans la presentation. Cette distinction preserve la fidelite future des contenus PDF et images sans introduire de test de format dans l'interface.

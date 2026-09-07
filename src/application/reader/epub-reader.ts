@@ -59,6 +59,7 @@ export interface EpubRendition {
 export const epubReaderCapabilities = {
   tableOfContents: true,
   continuousScroll: true,
+  readingThemeCustomization: true,
   fontCustomization: true,
   layoutCustomization: true,
   zoom: false,

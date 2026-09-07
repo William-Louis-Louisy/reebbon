@@ -141,6 +141,7 @@ test('EPUB reader implements the common lifecycle and reports typed CFI progress
     'close',
   ]);
   assert.deepEqual(reader.capabilities, epubReaderCapabilities);
+  assert.equal(reader.capabilities.readingThemeCustomization, true);
 });
 
 test('EPUB table of contents is exposed and navigated through the Reader capability', async () => {

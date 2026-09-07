@@ -21,6 +21,7 @@ test('design system tokens expose the Reebbon palette, type families, spacing, r
   assert.equal(designSystemTokens.spacing[4], 16);
   assert.equal(designSystemTokens.radii.md, 14);
   assert.equal(designSystemTokens.motion.uiTransition, 260);
+  assert.deepEqual(designSystemTokens.motion.uiEasingBezier, [0.4, 0, 0.2, 1]);
   assert.equal(designSystemTokens.motion.readingThemeTransition, 480);
   assert.equal(
     designSystemTokens.motion.readingThemeEasing,
@@ -46,6 +47,14 @@ test('design system tokens expose the Reebbon palette, type families, spacing, r
   assert.equal(
     designSystemTokens.components.readingLayoutControl.optionHeight,
     28,
+  );
+  assert.equal(
+    designSystemTokens.components.readerSettingsSheet.maxWidth,
+    340,
+  );
+  assert.equal(
+    designSystemTokens.components.readerSettingsSheet.handleWidth,
+    36,
   );
 });
 
