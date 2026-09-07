@@ -3,6 +3,14 @@ export { SqliteApplicationPreferenceRepository } from './database/repositories/s
 export { ExpoFileImportSourcePicker } from './importing/expo-file-import-source-picker';
 export { EpubMetadataExtractor } from './importing/epub-metadata-extractor';
 export { ExpoImportFileReader } from './importing/expo-import-file-reader';
+export {
+  ExpoPdfFirstPageRenderer,
+  type PdfFirstPageRenderer,
+  type PdfPageImageGateway,
+  type PdfPageImageGatewayLoader,
+  type RenderedPdfFirstPage,
+} from './importing/pdf-first-page-renderer';
+export { PdfMetadataExtractor } from './importing/pdf-metadata-extractor';
 export { createLocalAppColorSchemePreferenceService } from './preferences/local-app-color-scheme-preference-service';
 export {
   clearEpubRendererCache,

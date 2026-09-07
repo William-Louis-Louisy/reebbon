@@ -15,10 +15,12 @@ const source = {
 const errors: readonly ImportError[] = [
   { kind: 'unsupported-format', detectedFormat: 'mobi' },
   { kind: 'corrupted-source', format: 'epub' },
+  { kind: 'corrupted-source', format: 'pdf' },
   { kind: 'permission-or-access-failure', source },
   { kind: 'filesystem-failure', operation: 'copy' },
   { kind: 'filesystem-failure', operation: 'cleanup' },
   { kind: 'metadata-extraction-failure', format: 'epub' },
+  { kind: 'metadata-extraction-failure', format: 'pdf' },
   { kind: 'persistence-failure', operation: 'save' },
   { kind: 'persistence-failure', operation: 'rollback' },
 ];
@@ -44,7 +46,12 @@ test('unsupported and corrupted files have distinct actionable messages', () => 
   assert.notDeepEqual(unsupported, corrupted);
 });
 
+test('PDF failures identify the selected format', () => {
+  assert.match(getImportErrorAlert(errors[2]).message, /PDF/);
+  assert.match(getImportErrorAlert(errors[7]).title, /PDF/);
+});
+
 test('cleanup and rollback failures do not hide an incomplete compensation', () => {
-  assert.match(getImportErrorAlert(errors[4]).title, /nettoyage incomplet/i);
-  assert.match(getImportErrorAlert(errors[7]).message, /annulation/i);
+  assert.match(getImportErrorAlert(errors[5]).title, /nettoyage incomplet/i);
+  assert.match(getImportErrorAlert(errors[9]).message, /annulation/i);
 });
