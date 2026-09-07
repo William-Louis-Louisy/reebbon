@@ -19,6 +19,7 @@ import {
   defaultReaderFontSize,
   type Book,
   type EpubReaderPosition,
+  type PdfReaderPosition,
   type ReaderFontSize,
 } from '@/domain';
 import {
@@ -36,6 +37,7 @@ import {
 } from '@/infrastructure';
 import { getImportErrorAlert } from '@/presentation/importing/import-error-alert';
 import EpubReaderScreen from '@/presentation/reading/epub/epub-reader-screen';
+import PdfReaderScreen from '@/presentation/reading/pdf/pdf-reader-screen';
 import LibraryScreen, {
   type LibraryScreenState,
 } from '@/presentation/screens/library/library-screen';
@@ -65,6 +67,7 @@ type FileImportFlowResult =
   | { readonly status: 'import-failure'; readonly error: ImportError };
 
 interface EpubReadingSession {
+  readonly kind: 'epub';
   readonly book: Book<'epub'>;
   readonly fontSize: ReaderFontSize;
   readonly fontSizePreferences?: EpubFontSizePreferenceService;
@@ -72,6 +75,16 @@ interface EpubReadingSession {
   readonly progress?: ReadingProgressService;
   readonly storage?: LocalStorage;
 }
+
+interface PdfReadingSession {
+  readonly kind: 'pdf';
+  readonly book: Book<'pdf'>;
+  readonly initialPosition?: PdfReaderPosition;
+  readonly progress?: ReadingProgressService;
+  readonly storage?: LocalStorage;
+}
+
+type ReadingSession = EpubReadingSession | PdfReadingSession;
 
 type ReadingSessionWarning =
   | 'storage-unavailable'
@@ -84,7 +97,7 @@ export default function LibraryRoute() {
   const [state, setState] = useState<LibraryScreenState>(loadingState);
   const [isImporting, setIsImporting] = useState(false);
   const [readingSession, setReadingSession] =
-    useState<EpubReadingSession | null>(null);
+    useState<ReadingSession | null>(null);
   const isOpeningReader = useRef(false);
   const didReportProgressFailure = useRef(false);
   const didReportFontSizeFailure = useRef(false);
@@ -133,37 +146,38 @@ export default function LibraryRoute() {
   };
 
   const openBook = useCallback((book: Book) => {
-    if (isEpubBook(book)) {
-      if (isOpeningReader.current || readingSession !== null) {
-        return;
-      }
-      isOpeningReader.current = true;
-      didReportProgressFailure.current = false;
-      didReportFontSizeFailure.current = false;
-      void prepareEpubReadingSession(book)
-        .then(({ session, warning }) => {
-          if (warning !== undefined) {
-            didReportProgressFailure.current =
-              warning !== 'preferences-unavailable';
-            didReportFontSizeFailure.current =
-              warning !== 'progress-unavailable';
-            showReadingSessionWarning(warning);
-          }
-          setReadingSession(session);
-        })
-        .finally(() => {
-          isOpeningReader.current = false;
-        });
+    if (isOpeningReader.current || readingSession !== null) {
       return;
     }
-    Alert.alert(
-      'Lecture indisponible',
-      'Le moteur de lecture de ce format n’est pas encore disponible.',
-    );
+    const preparation = prepareSupportedReadingSession(book);
+    if (preparation === undefined) {
+      Alert.alert(
+        'Lecture indisponible',
+        'Le moteur de lecture de ce format n’est pas encore disponible.',
+      );
+      return;
+    }
+    isOpeningReader.current = true;
+    didReportProgressFailure.current = false;
+    didReportFontSizeFailure.current = false;
+    void preparation
+      .then(({ session, warning }) => {
+        if (warning !== undefined) {
+          didReportProgressFailure.current =
+            warning !== 'preferences-unavailable';
+          didReportFontSizeFailure.current =
+            session.kind === 'epub' && warning !== 'progress-unavailable';
+          showReadingSessionWarning(warning, session.kind);
+        }
+        setReadingSession(session);
+      })
+      .finally(() => {
+        isOpeningReader.current = false;
+      });
   }, [readingSession]);
 
   const publishReadingProgress = useCallback(
-    (book: Book<'epub'>, completionRatio: number) => {
+    (book: Book, completionRatio: number) => {
       setState((current) => {
         if (current.status !== 'ready') {
           return current;
@@ -179,10 +193,13 @@ export default function LibraryRoute() {
     [],
   );
 
-  const persistReadingProgress = (
-    session: EpubReadingSession,
-    progress: ReaderProgress<'epub'>,
-  ) => {
+  function persistReadingProgress<F extends 'epub' | 'pdf'>(
+    session: {
+      readonly book: Book<F>;
+      readonly progress?: ReadingProgressService;
+    },
+    progress: ReaderProgress<F>,
+  ) {
     publishReadingProgress(session.book, progress.completionRatio);
     if (session.progress === undefined) {
       return;
@@ -193,7 +210,7 @@ export default function LibraryRoute() {
         showReadingSessionWarning('progress-unavailable');
       }
     });
-  };
+  }
 
   const persistFontSize = (
     session: EpubReadingSession,
@@ -236,7 +253,7 @@ export default function LibraryRoute() {
         onRequestClose={closeReader}
         presentationStyle="fullScreen"
         visible={readingSession !== null}>
-        {readingSession === null ? null : (
+        {readingSession?.kind === 'epub' ? (
           <EpubReaderScreen
             book={readingSession.book}
             clearRendererCache={clearEpubRendererCache}
@@ -253,10 +270,39 @@ export default function LibraryRoute() {
             }
             prepareSource={prepareEpubForRendering}
           />
-        )}
+        ) : readingSession?.kind === 'pdf' ? (
+          <PdfReaderScreen
+            book={readingSession.book}
+            initialPosition={readingSession.initialPosition}
+            onClose={closeReader}
+            onProgressChange={(progress) =>
+              persistReadingProgress(readingSession, progress)
+            }
+          />
+        ) : null}
       </Modal>
     </>
   );
+}
+
+function prepareSupportedReadingSession(
+  book: Book,
+): Promise<{
+  readonly session: ReadingSession;
+  readonly warning?: ReadingSessionWarning;
+}> | undefined {
+  if (isEpubBook(book)) {
+    return prepareEpubReadingSession(book);
+  }
+  return isPdfBook(book) ? preparePdfReadingSession(book) : undefined;
+}
+
+function isEpubBook(book: Book): book is Book<'epub'> {
+  return book.format === 'epub';
+}
+
+function isPdfBook(book: Book): book is Book<'pdf'> {
+  return book.format === 'pdf';
 }
 
 async function prepareEpubReadingSession(
@@ -270,7 +316,7 @@ async function prepareEpubReadingSession(
     const initialized = await initializeLocalStorage();
     if (!initialized.ok) {
       return {
-        session: { book, fontSize: defaultReaderFontSize },
+        session: { kind: 'epub', book, fontSize: defaultReaderFontSize },
         warning: 'storage-unavailable',
       };
     }
@@ -290,6 +336,7 @@ async function prepareEpubReadingSession(
 
     return {
       session: {
+        kind: 'epub',
         book,
         fontSize: loadedFontSize.ok
           ? loadedFontSize.value
@@ -308,23 +355,71 @@ async function prepareEpubReadingSession(
       await closeQuietly(storage);
     }
     return {
-      session: { book, fontSize: defaultReaderFontSize },
+      session: { kind: 'epub', book, fontSize: defaultReaderFontSize },
       warning: 'storage-unavailable',
     };
   }
 }
 
-async function closeReadingSession(session: EpubReadingSession): Promise<void> {
+async function preparePdfReadingSession(
+  book: Book<'pdf'>,
+): Promise<{
+  readonly session: PdfReadingSession;
+  readonly warning?: ReadingSessionWarning;
+}> {
+  let storage: LocalStorage | undefined;
+  try {
+    const initialized = await initializeLocalStorage();
+    if (!initialized.ok) {
+      return {
+        session: { kind: 'pdf', book },
+        warning: 'storage-unavailable',
+      };
+    }
+
+    storage = initialized.value;
+    const progress = createReadingProgressService({
+      repository: storage.readingProgress,
+      now: () => new Date(),
+    });
+    const loaded = await progress.load(book);
+    return {
+      session: {
+        kind: 'pdf',
+        book,
+        progress,
+        storage,
+        ...(!loaded.ok || loaded.value === null
+          ? {}
+          : { initialPosition: loaded.value.position }),
+      },
+      ...(loaded.ok ? {} : { warning: 'progress-unavailable' }),
+    };
+  } catch {
+    if (storage !== undefined) {
+      await closeQuietly(storage);
+    }
+    return {
+      session: { kind: 'pdf', book },
+      warning: 'storage-unavailable',
+    };
+  }
+}
+
+async function closeReadingSession(session: ReadingSession): Promise<void> {
   await Promise.all([
     session.progress?.flush(),
-    session.fontSizePreferences?.flush(),
+    session.kind === 'epub' ? session.fontSizePreferences?.flush() : undefined,
   ]);
   if (session.storage !== undefined) {
     await closeQuietly(session.storage);
   }
 }
 
-function showReadingSessionWarning(warning: ReadingSessionWarning): void {
+function showReadingSessionWarning(
+  warning: ReadingSessionWarning,
+  readerKind?: ReadingSession['kind'],
+): void {
   if (warning === 'preferences-unavailable') {
     Alert.alert(
       'Préférence non enregistrée',
@@ -344,7 +439,9 @@ function showReadingSessionWarning(warning: ReadingSessionWarning): void {
       ? 'Stockage indisponible'
       : 'Progression non enregistrée',
     warning === 'storage-unavailable'
-      ? 'La lecture reste disponible, mais la progression et la taille de police ne peuvent pas être restaurées ou enregistrées.'
+      ? readerKind === 'epub'
+        ? 'La lecture reste disponible, mais la progression et la taille de police ne peuvent pas être restaurées ou enregistrées.'
+        : 'La lecture reste disponible, mais la progression ne peut pas être restaurée ou enregistrée.'
       : 'La lecture reste disponible, mais Reebbon ne peut pas restaurer ou enregistrer la position pour le moment.',
   );
 }
@@ -360,10 +457,6 @@ function getReadingSessionWarning(
     return 'progress-unavailable';
   }
   return preferencesAvailable ? undefined : 'preferences-unavailable';
-}
-
-function isEpubBook(book: Book): book is Book<'epub'> {
-  return book.format === 'epub';
 }
 
 async function loadLibrary(): Promise<LibraryScreenState> {
