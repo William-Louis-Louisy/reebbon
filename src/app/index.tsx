@@ -1,5 +1,5 @@
 import { randomUUID } from 'expo-crypto';
-import { startTransition, useEffect, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Modal } from 'react-native';
 
 import {
@@ -36,6 +36,9 @@ import EpubReaderScreen from '@/presentation/reading/epub/epub-reader-screen';
 import LibraryScreen, {
   type LibraryScreenState,
 } from '@/presentation/screens/library/library-screen';
+import {
+  updateLibraryBookProgress,
+} from '@/presentation/screens/library/library-progress';
 
 const loadingState: LibraryScreenState = { status: 'loading' };
 const failureState: LibraryScreenState = { status: 'failure' };
@@ -121,7 +124,7 @@ export default function LibraryRoute() {
       });
   };
 
-  const openBook = (book: Book) => {
+  const openBook = useCallback((book: Book) => {
     if (isEpubBook(book)) {
       if (isOpeningReader.current || readingSession !== null) {
         return;
@@ -149,12 +152,30 @@ export default function LibraryRoute() {
       'Lecture indisponible',
       'Le moteur de lecture de ce format n’est pas encore disponible.',
     );
-  };
+  }, [readingSession]);
+
+  const publishReadingProgress = useCallback(
+    (book: Book<'epub'>, completionRatio: number) => {
+      setState((current) => {
+        if (current.status !== 'ready') {
+          return current;
+        }
+        const books = updateLibraryBookProgress(
+          current.books,
+          book.id,
+          completionRatio,
+        );
+        return books === current.books ? current : { status: 'ready', books };
+      });
+    },
+    [],
+  );
 
   const persistReadingProgress = (
     session: EpubReadingSession,
     progress: ReaderProgress<'epub'>,
   ) => {
+    publishReadingProgress(session.book, progress.completionRatio);
     if (session.progress === undefined) {
       return;
     }
@@ -189,10 +210,6 @@ export default function LibraryRoute() {
     }
     isOpeningReader.current = true;
     void closeReadingSession(session).finally(() => {
-      startTransition(() => {
-        setState(loadingState);
-        setReloadKey((current) => current + 1);
-      });
       isOpeningReader.current = false;
     });
   };

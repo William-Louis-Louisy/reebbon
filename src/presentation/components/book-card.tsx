@@ -3,7 +3,7 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { LibraryBookItem } from '@/application';
-import type { BookFormat } from '@/domain';
+import type { Book, BookFormat } from '@/domain';
 import { designSystemTokens } from '@/shared/theme';
 
 import { AppText } from './app-text';
@@ -18,11 +18,15 @@ const formatLabels: Record<BookFormat, string> = {
 
 export interface BookCardProps {
   readonly item: LibraryBookItem;
-  readonly onPress: () => void;
+  readonly onBookPress: (book: Book) => void;
   readonly width: number;
 }
 
-export const BookCard = memo(function BookCard({ item, onPress, width }: BookCardProps) {
+export const BookCard = memo(function BookCard({
+  item,
+  onBookPress,
+  width,
+}: BookCardProps) {
   const { book } = item;
   const progress = normalizeProgress(item.progress);
   const percentage = Math.round(progress * 100);
@@ -33,7 +37,7 @@ export const BookCard = memo(function BookCard({ item, onPress, width }: BookCar
     <Pressable
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
-      onPress={onPress}
+      onPress={() => onBookPress(book)}
       style={({ pressed }) => [{ width }, pressed && styles.pressed]}>
       <View style={styles.coverShadow}>
         <View style={styles.cover}>

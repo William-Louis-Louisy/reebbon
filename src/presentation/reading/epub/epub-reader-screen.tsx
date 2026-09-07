@@ -34,6 +34,7 @@ import {
 } from '@/shared/theme';
 
 import { AppText } from '../../components/app-text';
+import { Ribbon } from '../../components/ribbon';
 import { ReaderSettingsSheet } from '../reader-settings-sheet';
 import { EpubFontSizeControl } from './epub-font-size-control';
 import { EpubLayoutControl } from './epub-layout-control';
@@ -346,6 +347,7 @@ function EpubReaderSession({
           edges={['top', 'bottom', 'left', 'right']}
           style={styles.safeArea}>
           <View style={styles.topBar}>
+            <Ribbon progress={completionRatio} style={styles.readerRibbon} />
             <AppText
               numberOfLines={1}
               style={[styles.bookTitle, { color: readingTheme.text }]}
@@ -645,12 +647,19 @@ const styles = StyleSheet.create({
   topBar: {
     minHeight: designSystemTokens.spacing[7],
     paddingHorizontal: designSystemTokens.spacing[4],
+    paddingRight: designSystemTokens.spacing[8],
     flexDirection: 'row',
     alignItems: 'center',
     gap: designSystemTokens.spacing[3],
   },
   bookTitle: {
     flex: 1,
+  },
+  readerRibbon: {
+    position: 'absolute',
+    right: designSystemTokens.components.ribbon.coverInset,
+    top: 0,
+    zIndex: 1,
   },
   rendition: {
     flex: 1,

@@ -65,6 +65,8 @@ export const designSystemTokens = {
     uiEasingBezier: [0.4, 0, 0.2, 1] as const,
     readingThemeTransition: 480,
     readingThemeEasing: 'cubic-bezier(.22,.61,.36,1)',
+    pageEasingBezier: [0.22, 0.61, 0.36, 1] as const,
+    ribbonUnfurl: 900,
   },
   interaction: {
     pressedOpacity: 0.78,
