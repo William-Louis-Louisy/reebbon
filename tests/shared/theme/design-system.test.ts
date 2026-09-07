@@ -23,6 +23,11 @@ test('design system tokens expose the Reebbon palette, type families, spacing, r
   assert.equal(designSystemTokens.motion.uiTransition, 260);
   assert.deepEqual(designSystemTokens.motion.uiEasingBezier, [0.4, 0, 0.2, 1]);
   assert.equal(designSystemTokens.motion.readingThemeTransition, 480);
+  assert.equal(designSystemTokens.motion.ribbonUnfurl, 900);
+  assert.deepEqual(
+    designSystemTokens.motion.pageEasingBezier,
+    [0.22, 0.61, 0.36, 1],
+  );
   assert.equal(
     designSystemTokens.motion.readingThemeEasing,
     'cubic-bezier(.22,.61,.36,1)',

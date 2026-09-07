@@ -80,7 +80,7 @@ export default function LibraryScreen({
           renderItem={({ item }) => (
             <BookCard
               item={item}
-              onPress={() => onBookPress(item.book)}
+              onBookPress={onBookPress}
               width={metrics.itemWidth}
             />
           )}
@@ -113,6 +113,7 @@ function LibraryHeader({
         Vos ouvrages, leur couverture et votre progression réunis au même endroit.
       </AppText>
       <AppColorSchemeControl />
+      {isImporting ? <ImportRibbonFeedback /> : null}
       {showImportAction ? (
         <LibraryAction
           disabled={isImporting}
@@ -120,6 +121,17 @@ function LibraryHeader({
           onPress={onImportPress}
         />
       ) : null}
+    </View>
+  );
+}
+
+function ImportRibbonFeedback() {
+  return (
+    <View accessibilityLiveRegion="polite" style={styles.importFeedback}>
+      <View style={styles.importRibbonFrame}>
+        <Ribbon animateUnfurl progress={1} />
+      </View>
+      <AppText tone="muted">Le Ruban se déroule pendant l’import…</AppText>
     </View>
   );
 }
@@ -235,6 +247,17 @@ const styles = StyleSheet.create({
   },
   header: {
     gap: designSystemTokens.spacing[2],
+  },
+  importFeedback: {
+    minHeight: designSystemTokens.components.ribbon.maxHeight,
+    marginTop: designSystemTokens.spacing[2],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: designSystemTokens.spacing[3],
+  },
+  importRibbonFrame: {
+    width: designSystemTokens.components.ribbon.width,
+    height: designSystemTokens.components.ribbon.maxHeight,
   },
   statusPanel: {
     minHeight: designSystemTokens.layout.libraryGrid.emptyStateMinHeight,
