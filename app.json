@@ -44,7 +44,9 @@
         }
       ],
       "expo-sqlite",
-      "expo-asset"
+      "expo-asset",
+      "@config-plugins/react-native-blob-util",
+      "@config-plugins/react-native-pdf"
     ],
     "experiments": {
       "typedRoutes": true,

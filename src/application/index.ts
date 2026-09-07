@@ -80,6 +80,13 @@ export {
   type EpubRenditionError,
   type EpubRenditionLocation,
 } from './reader/epub-reader';
+export {
+  createPdfReader,
+  pdfReaderCapabilities,
+  type PdfRendition,
+  type PdfRenditionError,
+  type PdfRenditionLocation,
+} from './reader/pdf-reader';
 export type { BookmarkRepository } from './reading/bookmark-repository';
 export type { ReadingProgressRepository } from './reading/reading-progress-repository';
 export {

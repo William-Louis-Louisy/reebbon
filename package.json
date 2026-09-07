@@ -3,6 +3,8 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@config-plugins/react-native-blob-util": "^14.0.2",
+    "@config-plugins/react-native-pdf": "^14.0.2",
     "@dariyd/react-native-pdf-page-image": "^2.0.0",
     "@epubjs-react-native/core": "^1.4.7",
     "@expo-google-fonts/fraunces": "^0.4.1",
@@ -35,7 +37,9 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
+    "react-native-blob-util": "^0.24.10",
     "react-native-gesture-handler": "~2.32.0",
+    "react-native-pdf": "^7.0.5",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
