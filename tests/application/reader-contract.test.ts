@@ -21,6 +21,7 @@ test('a format adapter can implement the common Reader contract without framewor
     capabilities: {
       tableOfContents: true,
       continuousScroll: true,
+      readingThemeCustomization: false,
       fontCustomization: false,
       layoutCustomization: false,
       zoom: true,

@@ -62,6 +62,7 @@ export const designSystemTokens = {
   motion: {
     quickFeedback: 120,
     uiTransition: 260,
+    uiEasingBezier: [0.4, 0, 0.2, 1] as const,
     readingThemeTransition: 480,
     readingThemeEasing: 'cubic-bezier(.22,.61,.36,1)',
   },
@@ -197,6 +198,16 @@ export const designSystemTokens = {
     },
     readerChrome: {
       mutedOpacity: 0.7,
+    },
+    readerSettingsSheet: {
+      backdropOpacity: 0.48,
+      entranceOffset: 128,
+      handleHeight: 4,
+      handleWidth: 36,
+      maxHeight: '90%',
+      maxWidth: 340,
+      rowMinHeight: 56,
+      touchTargetSize: 44,
     },
     readingFontSizeControl: {
       buttonSize: 28,
