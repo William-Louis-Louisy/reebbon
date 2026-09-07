@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@dariyd/react-native-pdf-page-image": "^2.0.0",
     "@epubjs-react-native/core": "^1.4.7",
     "@expo-google-fonts/fraunces": "^0.4.1",
     "@expo-google-fonts/ibm-plex-mono": "^0.4.1",
@@ -30,6 +31,7 @@
     "expo-web-browser": "~57.0.2",
     "fast-xml-parser": "^5.11.1",
     "fflate": "^0.8.3",
+    "pdf-lib": "^1.17.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",

@@ -7,6 +7,7 @@ import {
   createEpubFontSizePreferenceService,
   createImportFormatDetector,
   createListLibraryBooks,
+  createPdfImporter,
   createReadingProgressService,
   type ImportError,
   type EpubFontSizePreferenceService,
@@ -25,9 +26,11 @@ import {
   EpubMetadataExtractor,
   ExpoFileImportSourcePicker,
   ExpoImportFileReader,
+  ExpoPdfFirstPageRenderer,
   initializeLocalStorage,
   getExpoEpubRendererFileSystem,
   loadBundledLiterataDataUri,
+  PdfMetadataExtractor,
   prepareEpubForRendering,
   type LocalStorage,
 } from '@/infrastructure';
@@ -42,13 +45,18 @@ import {
 
 const loadingState: LibraryScreenState = { status: 'loading' };
 const failureState: LibraryScreenState = { status: 'failure' };
-const epubMimeTypes = ['application/epub+zip'] as const;
+const importMimeTypes = ['application/epub+zip', 'application/pdf'] as const;
 const importSourcePicker = new ExpoFileImportSourcePicker();
 const importFileReader = new ExpoImportFileReader();
 const importFormatDetector = createImportFormatDetector({ files: importFileReader });
 const epubMetadataExtractor = new EpubMetadataExtractor(importFileReader);
+const pdfFirstPageRenderer = new ExpoPdfFirstPageRenderer(importFileReader);
+const pdfMetadataExtractor = new PdfMetadataExtractor(
+  importFileReader,
+  pdfFirstPageRenderer,
+);
 
-type EpubImportFlowResult =
+type FileImportFlowResult =
   | { readonly status: 'cancelled' }
   | { readonly status: 'success'; readonly books: readonly LibraryBookItem[] }
   | { readonly status: 'selection-failure' }
@@ -102,13 +110,13 @@ export default function LibraryRoute() {
     });
   };
 
-  const importEpub = () => {
+  const importBook = () => {
     if (isImporting) {
       return;
     }
 
     setIsImporting(true);
-    void runEpubImport()
+    void runFileImport()
       .then((result) => {
         if (result.status === 'success') {
           setState({ status: 'ready', books: result.books });
@@ -219,7 +227,7 @@ export default function LibraryRoute() {
       <LibraryScreen
         isImporting={isImporting}
         onBookPress={openBook}
-        onImportPress={importEpub}
+        onImportPress={importBook}
         onRetryPress={retry}
         state={state}
       />
@@ -375,14 +383,25 @@ async function loadLibrary(): Promise<LibraryScreenState> {
   }
 }
 
-async function runEpubImport(): Promise<EpubImportFlowResult> {
+async function runFileImport(): Promise<FileImportFlowResult> {
   try {
-    const selected = await importSourcePicker.pickFile({ mimeTypes: epubMimeTypes });
+    const selected = await importSourcePicker.pickFile({ mimeTypes: importMimeTypes });
     if (!selected.ok) {
       return { status: 'selection-failure' };
     }
     if (selected.value === null) {
       return { status: 'cancelled' };
+    }
+
+    const detected = await importFormatDetector.detect(selected.value);
+    if (!detected.ok) {
+      return { status: 'import-failure', error: detected.error };
+    }
+    if (detected.value !== 'epub' && detected.value !== 'pdf') {
+      return {
+        status: 'import-failure',
+        error: { kind: 'unsupported-format', detectedFormat: detected.value },
+      };
     }
 
     const initialized = await initializeLocalStorage();
@@ -391,14 +410,23 @@ async function runEpubImport(): Promise<EpubImportFlowResult> {
     }
 
     try {
-      const importer = createEpubImporter({
+      const sharedDependencies = {
         books: initialized.value.books,
         content: initialized.value.content,
         detector: importFormatDetector,
-        metadata: epubMetadataExtractor,
         createId: randomUUID,
         now: () => new Date(),
-      });
+      };
+      const importer =
+        detected.value === 'epub'
+          ? createEpubImporter({
+              ...sharedDependencies,
+              metadata: epubMetadataExtractor,
+            })
+          : createPdfImporter({
+              ...sharedDependencies,
+              metadata: pdfMetadataExtractor,
+            });
       const imported = await importer.importBook(selected.value);
       if (!imported.ok) {
         return { status: 'import-failure', error: imported.error };
@@ -429,7 +457,7 @@ async function closeQuietly(storage: LocalStorage): Promise<void> {
   }
 }
 
-function showImportFailure(result: Exclude<EpubImportFlowResult, { status: 'success' }>) {
+function showImportFailure(result: Exclude<FileImportFlowResult, { status: 'success' }>) {
   switch (result.status) {
     case 'cancelled':
       return;

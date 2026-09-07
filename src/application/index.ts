@@ -1,4 +1,12 @@
-export type { ImportError, ImportFormat, ImportResult, ImportSource, ImportSourceFor, Importer } from './importing/importer';
+export type {
+  FileImportSource,
+  ImportError,
+  ImportFormat,
+  ImportResult,
+  ImportSource,
+  ImportSourceFor,
+  Importer,
+} from './importing/importer';
 export { readerFormatForImportFormat } from './importing/importer';
 export type {
   BookMetadataExtractor,
@@ -27,6 +35,10 @@ export {
   createEpubImporter,
   type EpubImporterDependencies,
 } from './importing/import-epub';
+export {
+  createPdfImporter,
+  type PdfImporterDependencies,
+} from './importing/import-pdf';
 export type { BookRepository } from './library/book-repository';
 export type {
   ApplicationPreference,

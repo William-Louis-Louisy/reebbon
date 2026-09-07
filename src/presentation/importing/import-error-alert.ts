@@ -1,4 +1,4 @@
-import type { ImportError } from '@/application';
+import type { ImportError, ImportFormat } from '@/application';
 
 export interface ImportErrorAlert {
   readonly title: string;
@@ -10,12 +10,12 @@ export function getImportErrorAlert(error: ImportError): ImportErrorAlert {
     case 'unsupported-format':
       return {
         title: 'Format non pris en charge',
-        message: 'Ce format n’est pas pris en charge. Sélectionnez un fichier EPUB.',
+        message: 'Ce format n’est pas pris en charge. Sélectionnez un fichier EPUB ou PDF.',
       };
     case 'corrupted-source':
       return {
         title: 'Fichier endommagé',
-        message: 'Ce fichier EPUB est endommagé ou incomplet et ne peut pas être importé.',
+        message: `Ce fichier ${formatLabel(error.format)} est endommagé ou incomplet et ne peut pas être importé.`,
       };
     case 'permission-or-access-failure':
       return {
@@ -34,8 +34,8 @@ export function getImportErrorAlert(error: ImportError): ImportErrorAlert {
           };
     case 'metadata-extraction-failure':
       return {
-        title: 'Fichier EPUB illisible',
-        message: 'Les informations de ce fichier EPUB sont absentes ou illisibles.',
+        title: `Fichier ${formatLabel(error.format)} illisible`,
+        message: `Les informations de ce fichier ${formatLabel(error.format)} sont absentes ou illisibles.`,
       };
     case 'persistence-failure':
       return error.operation === 'rollback'
@@ -47,5 +47,20 @@ export function getImportErrorAlert(error: ImportError): ImportErrorAlert {
             title: 'Enregistrement impossible',
             message: 'L’ouvrage n’a pas pu être ajouté à la bibliothèque.',
           };
+  }
+}
+
+function formatLabel(format: ImportFormat | undefined): string {
+  switch (format) {
+    case 'epub':
+      return 'EPUB';
+    case 'pdf':
+      return 'PDF';
+    case 'image-directory':
+      return 'd’images';
+    case 'cbz':
+      return 'CBZ';
+    case undefined:
+      return 'sélectionné';
   }
 }

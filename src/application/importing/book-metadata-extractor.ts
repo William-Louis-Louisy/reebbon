@@ -20,6 +20,7 @@ export interface ExtractedBookMetadata {
   readonly title?: string;
   readonly author?: string;
   readonly cover?: ExtractedBookCover;
+  readonly totalPages?: number;
 }
 
 export type MetadataExtractionError = Extract<

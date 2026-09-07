@@ -117,7 +117,7 @@ function LibraryHeader({
       {showImportAction ? (
         <LibraryAction
           disabled={isImporting}
-          label={isImporting ? 'Import en cours…' : 'Importer un EPUB'}
+          label={isImporting ? 'Import en cours…' : 'Importer un ouvrage'}
           onPress={onImportPress}
         />
       ) : null}
@@ -187,11 +187,11 @@ function LibraryStatus({
         Votre prochaine lecture commence ici.
       </AppText>
       <AppText style={styles.statusCopy} tone="muted">
-        Importez un fichier EPUB pour composer votre bibliothèque hors ligne.
+        Importez un fichier EPUB ou PDF pour composer votre bibliothèque hors ligne.
       </AppText>
       <LibraryAction
         disabled={isImporting}
-        label={isImporting ? 'Import en cours…' : 'Importer un EPUB'}
+        label={isImporting ? 'Import en cours…' : 'Importer un ouvrage'}
         onPress={onImportPress}
       />
     </View>
