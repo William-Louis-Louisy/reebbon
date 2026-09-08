@@ -5,7 +5,13 @@ import {
   type Result,
 } from '../../domain';
 
-import type { Reader, ReaderError, ReaderProgress } from './reader';
+import type {
+  Reader,
+  ReaderError,
+  ReaderProgress,
+  ReaderTableOfContents,
+  ReaderTableOfContentsEntry,
+} from './reader';
 
 export type PdfRenditionError = Extract<
   ReaderError,
@@ -17,18 +23,29 @@ export interface PdfRenditionLocation {
   readonly totalPages: number;
 }
 
+export interface PdfRenditionTableOfContentsEntry
+  extends ReaderTableOfContentsEntry {
+  readonly page: number;
+}
+
 export interface PdfRendition {
   open(
     fileUri: string,
     initialPage?: number,
   ): Promise<Result<void, PdfRenditionError>>;
   goTo(page: number): Promise<Result<void, PdfRenditionError>>;
+  getTableOfContents(): Promise<
+    Result<readonly ReaderTableOfContentsEntry[], PdfRenditionError>
+  >;
+  goToTableOfContentsEntry(
+    entryId: string,
+  ): Promise<Result<void, PdfRenditionError>>;
   getLocation(): Promise<Result<PdfRenditionLocation, PdfRenditionError>>;
   close(): Promise<Result<void, PdfRenditionError>>;
 }
 
 export const pdfReaderCapabilities = {
-  tableOfContents: false,
+  tableOfContents: true,
   continuousScroll: false,
   readingThemeCustomization: false,
   fontCustomization: false,
@@ -43,10 +60,35 @@ type ReaderState = 'closed' | 'opening' | 'open' | 'failed';
 export function createPdfReader(rendition: PdfRendition): Reader<'pdf'> {
   let state: ReaderState = 'closed';
   let knownTotalPages: number | undefined;
+  let tableOfContentsEntries: readonly ReaderTableOfContentsEntry[] = [];
+  const tableOfContents: ReaderTableOfContents = {
+    async getEntries() {
+      if (state !== 'open') {
+        return err({ kind: 'not-open' });
+      }
+      const entries = await callRendition(() => rendition.getTableOfContents());
+      if (entries.ok) {
+        tableOfContentsEntries = entries.value;
+      }
+      return entries;
+    },
+    async goToEntry(entryId) {
+      if (state !== 'open') {
+        return err({ kind: 'not-open' });
+      }
+      if (!tableOfContentsEntries.some((entry) => entry.id === entryId)) {
+        return err({ kind: 'invalid-table-of-contents-entry', entryId });
+      }
+      return callRendition(() =>
+        rendition.goToTableOfContentsEntry(entryId),
+      );
+    },
+  };
 
   return {
     format: 'pdf',
     capabilities: pdfReaderCapabilities,
+    tableOfContents,
     async open(book, initialPosition) {
       if (book.format !== 'pdf') {
         return err({
@@ -65,6 +107,7 @@ export function createPdfReader(rendition: PdfRendition): Reader<'pdf'> {
         return err({ kind: 'invalid-position', position: initialPosition });
       }
 
+      tableOfContentsEntries = [];
       state = 'opening';
       knownTotalPages = normalizeTotalPages(book.totalPages);
       const opened = await callRendition(() =>
@@ -116,6 +159,7 @@ export function createPdfReader(rendition: PdfRendition): Reader<'pdf'> {
       const closed = await callRendition(() => rendition.close());
       state = 'closed';
       knownTotalPages = undefined;
+      tableOfContentsEntries = [];
       return closed;
     },
   };

@@ -191,6 +191,18 @@ export const designSystemTokens = {
       emptyBookHeight: 132,
       navigationClearance: 96,
     },
+    pdfNavigationGrid: {
+      fallbackViewportWidth: 320,
+      tabletBreakpoint: 600,
+      wideBreakpoint: 900,
+      compactColumns: 3,
+      tabletColumns: 5,
+      wideColumns: 7,
+      compactPadding: 16,
+      regularPadding: 24,
+      gap: 12,
+      pageAspectRatio: 3 / 4.2,
+    },
   },
   components: {
     appColorSchemeControl: {
@@ -200,6 +212,13 @@ export const designSystemTokens = {
     },
     readerChrome: {
       mutedOpacity: 0.7,
+    },
+    pdfPageNavigation: {
+      selectedBorderWidth: 2,
+      thumbnailBorderWidth: 1,
+      thumbnailPlaceholderOpacity: 0.56,
+      outlineMaxHeight: 48,
+      outlineIndentLimit: 3,
     },
     readerSettingsSheet: {
       backdropOpacity: 0.48,

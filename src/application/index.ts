@@ -86,7 +86,14 @@ export {
   type PdfRendition,
   type PdfRenditionError,
   type PdfRenditionLocation,
+  type PdfRenditionTableOfContentsEntry,
 } from './reader/pdf-reader';
+export type {
+  PdfPageThumbnail,
+  PdfPageThumbnailError,
+  PdfPageThumbnailProvider,
+  PdfPageThumbnailProviderFactory,
+} from './reader/pdf-page-thumbnail-provider';
 export type { BookmarkRepository } from './reading/bookmark-repository';
 export type { ReadingProgressRepository } from './reading/reading-progress-repository';
 export {

@@ -31,6 +31,7 @@ import {
   initializeLocalStorage,
   getExpoEpubRendererFileSystem,
   loadBundledLiterataDataUri,
+  NativePdfPageThumbnailProvider,
   PdfMetadataExtractor,
   prepareEpubForRendering,
   type LocalStorage,
@@ -273,6 +274,7 @@ export default function LibraryRoute() {
         ) : readingSession?.kind === 'pdf' ? (
           <PdfReaderScreen
             book={readingSession.book}
+            createThumbnailProvider={() => new NativePdfPageThumbnailProvider()}
             initialPosition={readingSession.initialPosition}
             onClose={closeReader}
             onProgressChange={(progress) =>

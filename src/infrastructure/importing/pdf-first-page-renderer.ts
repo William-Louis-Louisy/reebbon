@@ -5,6 +5,16 @@ import type {
   MetadataExtractionError,
 } from '../../application';
 import { err, ok, type Result } from '../../domain';
+import {
+  loadNativePdfPageImageGateway,
+  type PdfPageImageGateway,
+  type PdfPageImageGatewayLoader,
+} from '../pdf/pdf-page-image-gateway';
+
+export type {
+  PdfPageImageGateway,
+  PdfPageImageGatewayLoader,
+} from '../pdf/pdf-page-image-gateway';
 
 const FIRST_PAGE_INDEX = 0;
 const COVER_MAX_DIMENSION = 640;
@@ -21,27 +31,11 @@ export interface PdfFirstPageRenderer {
   ): Promise<Result<RenderedPdfFirstPage, MetadataExtractionError>>;
 }
 
-export interface PdfPageImageGateway {
-  open(uri: string): Promise<{ readonly pageCount: number }>;
-  generate(
-    uri: string,
-    page: number,
-    scale: number,
-    options: {
-      readonly format: 'jpeg';
-      readonly quality: number;
-      readonly maxDimension: number;
-    },
-  ): Promise<{ readonly uri: string; readonly width: number; readonly height: number }>;
-  close(uri: string): Promise<void>;
-}
-
-export type PdfPageImageGatewayLoader = () => Promise<PdfPageImageGateway>;
-
 export class ExpoPdfFirstPageRenderer implements PdfFirstPageRenderer {
   public constructor(
     private readonly files: Pick<ImportFileReader, 'readAll'>,
-    private readonly loadGateway: PdfPageImageGatewayLoader = loadNativeGateway,
+    private readonly loadGateway: PdfPageImageGatewayLoader =
+      loadNativePdfPageImageGateway,
   ) {}
 
   public async render(
@@ -115,9 +109,4 @@ export class ExpoPdfFirstPageRenderer implements PdfFirstPageRenderer {
 
 function hasJpegSignature(bytes: Uint8Array): boolean {
   return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-}
-
-async function loadNativeGateway(): Promise<PdfPageImageGateway> {
-  const { PdfPageImage } = await import('@dariyd/react-native-pdf-page-image');
-  return PdfPageImage;
 }
