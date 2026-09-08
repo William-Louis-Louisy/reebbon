@@ -22,6 +22,7 @@ const coverBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
 
 interface HarnessOptions {
   readonly failSave?: boolean;
+  readonly failMetadataUnexpectedly?: boolean;
   readonly detectedFormat?: 'epub' | 'pdf';
   readonly metadata?: {
     readonly title?: string;
@@ -80,14 +81,18 @@ function createHarness(options: HarnessOptions = {}) {
   };
   const metadata: BookMetadataExtractor<'pdf'> = {
     format: 'pdf',
-    extract: async () =>
-      ok({
+    async extract() {
+      if (options.failMetadataUnexpectedly) {
+        throw new Error('Native metadata boundary failed unexpectedly.');
+      }
+      return ok({
         title: 'Catalogue de l’exposition',
         author: 'Musée Reebbon',
         totalPages: 84,
         ...options.metadata,
         cover: { bytes: coverBytes, mediaType: 'image/jpeg' },
-      }),
+      });
+    },
   };
   const identifiers = ['pdf-book', 'pdf-job'];
   const importer = createPdfImporter({
@@ -149,6 +154,16 @@ test('PDF importer rejects another detected format before staging', async () => 
   assert.deepEqual(await harness.importer.importBook(source), {
     ok: false,
     error: { kind: 'unsupported-format', detectedFormat: 'epub' },
+  });
+  assert.deepEqual(harness.calls, []);
+});
+
+test('PDF importer types unexpected extraction failures before staging', async () => {
+  const harness = createHarness({ failMetadataUnexpectedly: true });
+
+  assert.deepEqual(await harness.importer.importBook(source), {
+    ok: false,
+    error: { kind: 'metadata-extraction-failure', format: 'pdf' },
   });
   assert.deepEqual(harness.calls, []);
 });

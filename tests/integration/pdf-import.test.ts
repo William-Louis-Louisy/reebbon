@@ -3,8 +3,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { PDFDocument } from 'pdf-lib';
-
 import {
   createImportFormatDetector,
   createListLibraryBooks,
@@ -27,12 +25,8 @@ test('a persisted PDF and generated cover appear in the library immediately', as
   const content = new LocalBookContentStore(fileSystem);
   const sourceUri = 'content://picker/offline-catalogue.pdf';
   const coverBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0xd9]);
-  const document = await PDFDocument.create();
-  document.addPage([400, 600]);
-  document.addPage([400, 600]);
-  document.setTitle('Offline Catalogue');
-  document.setAuthor('Reebbon Test');
-  const pdfBytes = await document.save();
+  const pdfBytes = new TextEncoder().encode('%PDF-1.7\n% bounded fixture');
+  let fullSourceReads = 0;
   fileSystem.files.add(sourceUri);
   fileSystem.fileBytes.set(sourceUri, pdfBytes);
 
@@ -50,6 +44,7 @@ test('a persisted PDF and generated cover appear in the library immediately', as
       );
     },
     readAll(uri) {
+      fullSourceReads += 1;
       const bytes = fileSystem.fileBytes.get(uri);
       return Promise.resolve(
         bytes === undefined
@@ -70,7 +65,7 @@ test('a persisted PDF and generated cover appear in the library immediately', as
     books,
     content,
     detector: createImportFormatDetector({ files }),
-    metadata: new PdfMetadataExtractor(files, firstPage),
+    metadata: new PdfMetadataExtractor(firstPage),
     createId() {
       const id = identifiers.shift();
       if (id === undefined) {
@@ -96,7 +91,6 @@ test('a persisted PDF and generated cover appear in the library immediately', as
       book: {
         id: 'pdf-book',
         title: 'Offline Catalogue',
-        author: 'Reebbon Test',
         format: 'pdf',
         fileUri: 'file:///documents/reebbon/books/pdf-book/book.pdf',
         coverUri: 'file:///documents/reebbon/books/pdf-book/cover.jpg',
@@ -117,6 +111,7 @@ test('a persisted PDF and generated cover appear in the library immediately', as
       ),
       coverBytes,
     );
+    assert.equal(fullSourceReads, 0);
   } finally {
     await connection.close();
   }

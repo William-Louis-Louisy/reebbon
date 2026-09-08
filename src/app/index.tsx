@@ -54,10 +54,7 @@ const importFileReader = new ExpoImportFileReader();
 const importFormatDetector = createImportFormatDetector({ files: importFileReader });
 const epubMetadataExtractor = new EpubMetadataExtractor(importFileReader);
 const pdfFirstPageRenderer = new ExpoPdfFirstPageRenderer(importFileReader);
-const pdfMetadataExtractor = new PdfMetadataExtractor(
-  importFileReader,
-  pdfFirstPageRenderer,
-);
+const pdfMetadataExtractor = new PdfMetadataExtractor(pdfFirstPageRenderer);
 
 type FileImportFlowResult =
   | { readonly status: 'cancelled' }
