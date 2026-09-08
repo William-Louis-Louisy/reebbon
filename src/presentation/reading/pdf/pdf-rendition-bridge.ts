@@ -2,6 +2,8 @@ import type {
   PdfRendition,
   PdfRenditionError,
   PdfRenditionLocation,
+  PdfRenditionTableOfContentsEntry,
+  ReaderTableOfContentsEntry,
 } from '@/application';
 import { err, ok, type Result } from '@/domain';
 
@@ -17,6 +19,7 @@ export interface PdfRenditionSnapshot {
   readonly sourceUri?: string;
   readonly initialPage?: number;
   readonly location?: PdfRenditionLocation;
+  readonly tableOfContentsEntries?: readonly PdfRenditionTableOfContentsEntry[];
   readonly error?: PdfRenditionError;
 }
 
@@ -93,6 +96,31 @@ export class PdfRenditionBridge implements PdfRendition {
     );
   }
 
+  public getTableOfContents(): Promise<
+    Result<readonly ReaderTableOfContentsEntry[], PdfRenditionError>
+  > {
+    return Promise.resolve(
+      this.snapshot.status === 'ready'
+        ? ok(
+            (this.snapshot.tableOfContentsEntries ?? []).map(
+              ({ id, label, depth }) => ({ id, label, depth }),
+            ),
+          )
+        : err({ kind: 'rendering-failure' }),
+    );
+  }
+
+  public goToTableOfContentsEntry(
+    entryId: string,
+  ): Promise<Result<void, PdfRenditionError>> {
+    const entry = this.snapshot.tableOfContentsEntries?.find(
+      (candidate) => candidate.id === entryId,
+    );
+    return entry === undefined
+      ? Promise.resolve(err({ kind: 'rendering-failure' }))
+      : this.goTo(entry.page);
+  }
+
   public close(): Promise<Result<void, PdfRenditionError>> {
     this.clearTimeout();
     this.settlePending(err({ kind: 'rendering-failure' }));
@@ -100,7 +128,10 @@ export class PdfRenditionBridge implements PdfRendition {
     return Promise.resolve(ok(undefined));
   }
 
-  public reportReady(location: PdfRenditionLocation): void {
+  public reportReady(
+    location: PdfRenditionLocation,
+    tableOfContentsEntries: readonly PdfRenditionTableOfContentsEntry[] = [],
+  ): void {
     if (this.snapshot.status !== 'opening') {
       return;
     }
@@ -109,6 +140,7 @@ export class PdfRenditionBridge implements PdfRendition {
       ...this.snapshot,
       status: 'ready',
       location,
+      tableOfContentsEntries,
     });
     this.settlePending(ok(undefined));
   }

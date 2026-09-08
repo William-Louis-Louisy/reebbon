@@ -33,6 +33,17 @@ function createRendition() {
       location = { ...location, page };
       return Promise.resolve(ok(undefined));
     },
+    getTableOfContents() {
+      calls.push('get-table-of-contents');
+      return Promise.resolve(
+        ok([{ id: 'pdf-outline-0', label: 'Chapter', depth: 0 }]),
+      );
+    },
+    goToTableOfContentsEntry(entryId) {
+      calls.push(`go-to-table-of-contents:${entryId}`);
+      location = { ...location, page: 4 };
+      return Promise.resolve(ok(undefined));
+    },
     getLocation() {
       calls.push('get-location');
       return Promise.resolve(ok(location));
@@ -67,7 +78,32 @@ test('PDF reader implements the common lifecycle with one-based page progress', 
   ]);
   assert.deepEqual(reader.capabilities, pdfReaderCapabilities);
   assert.equal(reader.capabilities.readingThemeCustomization, false);
+  assert.equal(reader.capabilities.tableOfContents, true);
   assert.equal(reader.capabilities.zoom, true);
+});
+
+test('PDF reader exposes native outline navigation through the common capability', async () => {
+  const harness = createRendition();
+  const reader = createPdfReader(harness.rendition);
+  await reader.open(book);
+
+  assert.deepEqual(await reader.tableOfContents?.getEntries(), {
+    ok: true,
+    value: [{ id: 'pdf-outline-0', label: 'Chapter', depth: 0 }],
+  });
+  assert.deepEqual(
+    await reader.tableOfContents?.goToEntry('pdf-outline-0'),
+    ok(undefined),
+  );
+  assert.deepEqual(
+    await reader.tableOfContents?.goToEntry('unknown'),
+    err({ kind: 'invalid-table-of-contents-entry', entryId: 'unknown' }),
+  );
+  assert.deepEqual(harness.calls, [
+    `open:${book.fileUri}:start`,
+    'get-table-of-contents',
+    'go-to-table-of-contents:pdf-outline-0',
+  ]);
 });
 
 test('PDF reader validates local content and page bounds before rendering', async () => {

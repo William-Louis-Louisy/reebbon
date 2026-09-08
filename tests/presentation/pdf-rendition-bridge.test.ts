@@ -40,6 +40,32 @@ test('PDF bridge delegates bounded page navigation only while ready', async () =
   assert.deepEqual(await bridge.goTo(3), err({ kind: 'rendering-failure' }));
 });
 
+test('PDF bridge keeps outline pages private behind common entry identifiers', async () => {
+  const pages: number[] = [];
+  const bridge = new PdfRenditionBridge();
+  const opening = bridge.open('file:///book.pdf');
+  bridge.reportReady(
+    { page: 1, totalPages: 8 },
+    [{ id: 'pdf-outline-0', label: 'Partie I', depth: 0, page: 3 }],
+  );
+  await opening;
+  bridge.attachControls({ setPage: (page) => pages.push(page) });
+
+  assert.deepEqual(await bridge.getTableOfContents(), {
+    ok: true,
+    value: [{ id: 'pdf-outline-0', label: 'Partie I', depth: 0 }],
+  });
+  assert.deepEqual(
+    await bridge.goToTableOfContentsEntry('pdf-outline-0'),
+    ok(undefined),
+  );
+  assert.deepEqual(
+    await bridge.goToTableOfContentsEntry('unknown'),
+    err({ kind: 'rendering-failure' }),
+  );
+  assert.deepEqual(pages, [3]);
+});
+
 test('PDF bridge converts timeout and native failures into typed failures', async () => {
   const timedOut = new PdfRenditionBridge(1);
   assert.deepEqual(

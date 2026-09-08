@@ -2,12 +2,12 @@
 
 - Statut : accepte
 - Date : 2026-09-07 (mise a jour le 2026-09-08)
-- Issues : #19, #20
-- Backlog : RDR-PDF-01, RDR-PDF-02
+- Issues : #19, #20, #21
+- Backlog : RDR-PDF-01, RDR-PDF-02, RDR-PDF-03
 
 ## Contexte
 
-Le deuxieme moteur de lecture doit afficher les PDF importes localement sur iOS et Android, respecter le contrat `Reader<'pdf'>` fixe par l'ADR 0001 et preserver la mise en page du document. Le lecteur doit aussi fournir le zoom et l'ajustement interactif de RDR-PDF-02; le sommaire et les vignettes appartiennent a RDR-PDF-03.
+Le deuxieme moteur de lecture doit afficher les PDF importes localement sur iOS et Android, respecter le contrat `Reader<'pdf'>` fixe par l'ADR 0001 et preserver la mise en page du document. Le lecteur doit aussi fournir le zoom et l'ajustement interactif de RDR-PDF-02, puis une navigation rapide par sommaire ou vignettes pour RDR-PDF-03.
 
 ## Decision
 
@@ -15,7 +15,10 @@ Le deuxieme moteur de lecture doit afficher les PDF importes localement sur iOS 
 - L'application depend uniquement du port `PdfRendition`. `createPdfReader` expose le cycle de vie commun `Reader<'pdf'>`, tandis que `PdfRenditionBridge` adapte les commandes et evenements du composant natif.
 - Les pages du contrat sont indexees a partir de 1. Chaque valeur recue de `onLoadComplete` et `onPageChanged` est validee avant d'entrer dans l'application. Une ouverture sans evenement natif expire apres 20 secondes avec une `rendering-failure` typee.
 - Le rendu utilise une pagination verticale, une page par ecran (`enablePaging`), sans espacement inter-page. Les boutons du chrome appellent `Reader.goTo`; le glissement natif met a jour le meme etat par `onPageChanged`.
-- Le zoom reste entierement natif afin de ne pas renvoyer chaque frame du geste vers JavaScript. Le pinch utilise une echelle bornee de 1 a 3. L'echelle minimale 1 et `fitPolicy=2` ajustent toute la page dans l'ecran; le double-tap natif parcourt ses niveaux de zoom puis revient a cet ajustement. La capacite `zoom` est vraie, tandis que `continuousScroll`, le sommaire et les personnalisations EPUB restent faux.
+- Le zoom reste entierement natif afin de ne pas renvoyer chaque frame du geste vers JavaScript. Le pinch utilise une echelle bornee de 1 a 3. L'echelle minimale 1 et `fitPolicy=2` ajustent toute la page dans l'ecran; le double-tap natif parcourt ses niveaux de zoom puis revient a cet ajustement. La capacite `zoom` est vraie, tandis que `continuousScroll` et les personnalisations EPUB restent faux.
+- Les metadonnees de sommaire optionnelles de `react-native-pdf` sont validees, bornees en profondeur, nombre de noeuds et longueur de libelle, puis aplaties et converties en pages indexees a partir de 1. `Reader.tableOfContents` expose uniquement les identifiants, libelles et profondeurs communs; l'association avec les pages reste privee dans `PdfRenditionBridge`. Un PDF sans sommaire retourne une liste vide et conserve la grille comme navigation principale.
+- La grille de pages utilise le port applicatif `PdfPageThumbnailProvider`. L'adaptateur d'infrastructure reutilise `@dariyd/react-native-pdf-page-image`, deja employe pour la couverture d'import, pour produire paresseusement des JPEG limites a 320 pixels. `FlatList` ne monte qu'une fenetre de pages; la fermeture attend les rendus actifs, ferme le document secondaire et supprime ses fichiers temporaires.
+- Une erreur d'ouverture ou de rendu des apercus laisse chaque emplacement de page visible et actionnable. Les selections du sommaire utilisent `Reader.tableOfContents.goToEntry`; celles de la grille utilisent `Reader.goTo`. Les deux chemins rejoignent ainsi le meme etat de page et le meme enregistrement de progression.
 - La page PDF n'est jamais recoloree. Le chrome commun utilise la surface Paper par defaut, mais le contenu reste rendu fidelement par le moteur natif. Les liens integres ne declenchent pas de navigation externe.
 - Le chrome partage `ReaderScreenChrome`, `ReaderLoading`, `ReaderFailure` et `ReaderChromeButton` entre EPUB et PDF. Le Ruban, le titre, les actions, le folio et les etats accessibles gardent une seule implementation.
 - La progression utilise `{ kind: 'pdf', page }` et le service generique `ReadingProgressService`. La route restaure la derniere page valide et sauvegarde chaque changement de page sans acces direct a SQLite depuis la presentation.
@@ -24,6 +27,6 @@ Le deuxieme moteur de lecture doit afficher les PDF importes localement sur iOS 
 
 `react-native-pdf`, `react-native-blob-util`, `@config-plugins/react-native-pdf` et `@config-plugins/react-native-blob-util` deviennent des dependances du development build. Toute installation existante doit etre reconstruite avant d'ouvrir un PDF.
 
-Les tests Node couvrent le contrat Reader, le bridge natif simule, la validation des pages, les erreurs, la progression et la configuration du zoom. Ils ne remplacent pas les validations du rendu, du glissement, du pinch, du double-tap et du temps d'ouverture sur appareils iOS et Android.
+Les tests Node couvrent le contrat Reader, le bridge natif simule, la validation des pages et du sommaire, les erreurs, la progression, la configuration du zoom ainsi que le cycle de vie des vignettes. Ils ne remplacent pas les validations du rendu, du glissement, du pinch, du double-tap, des apercus et du temps d'ouverture sur appareils iOS et Android.
 
-Le mode scroll continu, le sommaire et les vignettes restent explicitement hors de cette decision. Ils devront etendre les capacites et l'adaptateur existants sans contourner `Reader`.
+Le mode scroll continu reste explicitement hors de cette decision. La recherche et la selection courante dans le sommaire ne font pas partie de RDR-PDF-03.
