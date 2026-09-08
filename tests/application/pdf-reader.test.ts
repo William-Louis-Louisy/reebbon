@@ -67,7 +67,7 @@ test('PDF reader implements the common lifecycle with one-based page progress', 
   ]);
   assert.deepEqual(reader.capabilities, pdfReaderCapabilities);
   assert.equal(reader.capabilities.readingThemeCustomization, false);
-  assert.equal(reader.capabilities.zoom, false);
+  assert.equal(reader.capabilities.zoom, true);
 });
 
 test('PDF reader validates local content and page bounds before rendering', async () => {

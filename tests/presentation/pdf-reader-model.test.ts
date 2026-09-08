@@ -6,7 +6,25 @@ import test from 'node:test';
 import {
   getPdfFolio,
   parsePdfLocation,
+  pdfZoomConfiguration,
 } from '../../src/presentation/reading/pdf/pdf-reader-model';
+
+test('PDF zoom keeps fit-to-screen as its native minimum scale', () => {
+  assert.deepEqual(pdfZoomConfiguration, {
+    initialScale: 1,
+    minimumScale: 1,
+    maximumScale: 3,
+    fitPolicy: 2,
+    doubleTapEnabled: true,
+  });
+  assert.equal(
+    pdfZoomConfiguration.initialScale,
+    pdfZoomConfiguration.minimumScale,
+  );
+  assert.ok(
+    pdfZoomConfiguration.maximumScale > pdfZoomConfiguration.minimumScale,
+  );
+});
 
 test('PDF native locations are validated as one-based pages', () => {
   assert.deepEqual(parsePdfLocation(3, 12), {

@@ -33,7 +33,7 @@ export const pdfReaderCapabilities = {
   readingThemeCustomization: false,
   fontCustomization: false,
   layoutCustomization: false,
-  zoom: false,
+  zoom: true,
   configurableReadingDirection: false,
   doublePage: false,
 } as const;

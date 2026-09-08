@@ -5,6 +5,14 @@ export interface InvalidPdfLocationError {
   readonly kind: 'invalid-pdf-location';
 }
 
+export const pdfZoomConfiguration = {
+  initialScale: 1,
+  minimumScale: 1,
+  maximumScale: 3,
+  fitPolicy: 2,
+  doubleTapEnabled: true,
+} as const;
+
 export function parsePdfLocation(
   page: unknown,
   totalPages: unknown,
