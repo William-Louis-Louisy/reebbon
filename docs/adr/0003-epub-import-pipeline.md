@@ -4,7 +4,7 @@
 - Date : 2026-09-01
 - Issue : #6
 - Backlog : IMP-01
-- Revisions : 2026-09-07, Issue #18, IMP-02; 2026-09-08, Issue #60
+- Revisions : 2026-09-07, Issue #18, IMP-02; 2026-09-08, Issues #60 et #62
 
 ## Contexte
 
@@ -15,6 +15,8 @@ La revision IMP-04 ajoute la detection generique et l'extraction OPF sans modifi
 La revision IMP-02 ajoute le PDF sans creer un second orchestrateur d'import. Elle doit extraire les metadonnees disponibles, generer une couverture locale depuis la premiere page et conserver les memes garanties de staging et de compensation que l'EPUB.
 
 L'Issue #60 documente des fermetures brutales sur Android avec des PDF volumineux ou riches en images. L'audit confirme qu'apres le rendu natif de couverture, `File.bytes()` alloue encore un buffer JavaScript de la taille complete de la source et que `pdf-lib` le conserve pendant son analyse pour deux champs facultatifs. A l'inverse, sur Android, le renderer de couverture ouvre un descripteur de fichier et dimensionne son bitmap a 640 px avant allocation.
+
+L'Issue #62 suit un crash Android observe apres la persistance reussie d'un PDF lourd. Aucun appareil ni log systeme n'est disponible dans l'environnement d'implementation pour classer ce crash. L'analyse statique exclut une nouvelle lecture du binaire pendant le rafraichissement de bibliotheque, mais identifie des chemins natifs ou `PdfRenderer.Page`, `Bitmap`, le descripteur ou le cache du TurboModule ne sont pas liberes de maniere deterministe.
 
 ## Decision
 
@@ -29,6 +31,7 @@ L'Issue #60 documente des fermetures brutales sur Android avec des PDF volumineu
 - La couverture valide est ecrite dans le staging sous un nom canonique, puis deplacee avec l'EPUB. `coverUri` ne reference donc jamais une ressource temporaire ou externe.
 - `PdfMetadataExtractor` ne lit jamais le fichier PDF complet dans le heap JavaScript. L'API native disponible ne fournissant pas titre et auteur de maniere sure et bornee sur les deux plateformes, ces champs facultatifs sont omis et le pipeline commun utilise le nom de fichier comme titre de repli.
 - `ExpoPdfFirstPageRenderer` utilise `@dariyd/react-native-pdf-page-image` pour ouvrir le PDF avec PDFKit sur iOS ou `PdfRenderer` sur Android, obtenir le nombre de pages et produire un JPEG borne a 640 px depuis la premiere page. L'image temporaire est lue puis fermee; sa copie persistante rejoint le PDF dans le meme staging.
+- La fermeture du gateway PDF est attendue avant que l'extraction ne retourne, meme si l'ouverture native echoue. Le patch Android ferme chaque page et recycle chaque bitmap dans un bloc `finally`, libere le descripteur si la construction du renderer echoue, ferme les documents encore en cache a l'invalidation du TurboModule et expose les echecs de fermeture a la conversion d'erreur typee.
 - Le TurboModule PDF est charge au moment de l'import. Un development build qui ne le contient pas retourne une erreur d'extraction typee au lieu d'empecher le demarrage de l'application.
 - Le nom de fichier reste le fallback de titre lorsqu'un extracteur ne fournit pas de titre valide, notamment si l'OPF EPUB est incomplet ou si les metadonnees facultatives d'un PDF sont omises.
 - `expo-crypto` fournit des UUID v4 injectables pour les identifiants de livre et d'import.
@@ -46,6 +49,6 @@ Le lecteur PDF reste hors du perimetre d'IMP-02. Cette decision ne choisit ni le
 
 L'archive EPUB compressee est lue en memoire une fois par import, puis seules les entrees de metadonnees et de couverture sont decompressees avec des limites explicites. Cette approche evite d'extraire tout l'ouvrage et reste compatible Expo, mais les imports EPUB tres volumineux devront etre mesures sur appareils avant d'envisager un lecteur ZIP aleatoire ou streaming.
 
-Le chemin nominal PDF n'alloue plus de buffer JavaScript proportionnel a la taille du document. Sur Android, le rendu de couverture ouvre la source par descripteur de fichier et borne le bitmap avant son allocation; seul le petit JPEG genere est relu pour rejoindre le staging. Les PDF volumineux et principalement composes d'images restent a valider sur appareils afin de detecter un eventuel probleme natif distinct.
+Le chemin nominal PDF n'alloue plus de buffer JavaScript proportionnel a la taille du document. Sur Android, le rendu de couverture ouvre la source par descripteur de fichier et borne le bitmap avant son allocation; seul le petit JPEG genere est relu pour rejoindre le staging. Les ressources Java et natives connues sont liberees avant la copie, la persistance et le rafraichissement de bibliotheque. Les PDF volumineux et principalement composes d'images restent a valider sur appareil avec `adb logcat`: sans trace du crash initial, ce correctif de cycle de vie ne constitue pas une preuve d'OOM ni n'exclut un defaut PDFium distinct.
 
 Les erreurs de nettoyage sont elles-memes signalees explicitement, car une panne du stockage peut empecher de garantir la compensation malgre les tentatives de suppression. IMP-06 reste responsable de toute animation du Ruban pendant l'import.

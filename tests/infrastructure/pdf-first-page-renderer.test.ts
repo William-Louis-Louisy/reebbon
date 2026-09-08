@@ -87,12 +87,61 @@ test('an unopenable or empty PDF is reported as corrupted', async (context) => {
         ok: false,
         error: { kind: 'corrupted-source', format: 'pdf' },
       });
-      assert.equal(
-        harness.calls.includes('close:content://picker/book.pdf'),
-        !options.failOpen,
-      );
+      assert.equal(harness.calls.includes('close:content://picker/book.pdf'), true);
     });
   }
+});
+
+test('PDF extraction settles only after native resources are closed', async () => {
+  let settled = false;
+  let releaseClose: () => void = () => undefined;
+  let reportCloseStarted: () => void = () => undefined;
+  const closeGate = new Promise<void>((resolve) => {
+    releaseClose = resolve;
+  });
+  const closeStarted = new Promise<void>((resolve) => {
+    reportCloseStarted = resolve;
+  });
+  const gateway: PdfPageImageGateway = {
+    open: async () => ({ pageCount: 1 }),
+    generate: async () => ({
+      uri: 'file:///cache/cover.jpg',
+      width: 420,
+      height: 640,
+    }),
+    async close() {
+      reportCloseStarted();
+      await closeGate;
+    },
+  };
+  const files: Pick<ImportFileReader, 'readAll'> = {
+    readAll: async () => ok(jpeg),
+  };
+  const renderer = new ExpoPdfFirstPageRenderer(files, async () => gateway);
+
+  const rendering = renderer.render(source).then((result) => {
+    settled = true;
+    return result;
+  });
+  await closeStarted;
+
+  assert.equal(settled, false);
+  releaseClose();
+  assert.equal((await rendering).ok, true);
+  assert.equal(settled, true);
+});
+
+test('a close failure after an open failure remains typed', async () => {
+  const harness = createHarness({ failOpen: true, failClose: true });
+
+  assert.deepEqual(await harness.renderer.render(source), {
+    ok: false,
+    error: { kind: 'metadata-extraction-failure', format: 'pdf' },
+  });
+  assert.deepEqual(harness.calls, [
+    'open:content://picker/book.pdf',
+    'close:content://picker/book.pdf',
+  ]);
 });
 
 test('render, generated-file, and cleanup failures remain typed', async (context) => {
