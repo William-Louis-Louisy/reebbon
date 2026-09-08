@@ -48,6 +48,20 @@ export class ExpoPdfFirstPageRenderer implements PdfFirstPageRenderer {
       return err({ kind: 'metadata-extraction-failure', format: 'pdf' });
     }
 
+    const rendered = await this.renderWithGateway(gateway, source);
+
+    try {
+      await gateway.close(source.uri);
+    } catch {
+      return err({ kind: 'metadata-extraction-failure', format: 'pdf' });
+    }
+    return rendered;
+  }
+
+  private async renderWithGateway(
+    gateway: PdfPageImageGateway,
+    source: FileImportSource,
+  ): Promise<Result<RenderedPdfFirstPage, MetadataExtractionError>> {
     let pageCount: number;
     try {
       const opened = await gateway.open(source.uri);
@@ -56,19 +70,11 @@ export class ExpoPdfFirstPageRenderer implements PdfFirstPageRenderer {
       return err({ kind: 'corrupted-source', format: 'pdf' });
     }
 
-    let rendered: Result<RenderedPdfFirstPage, MetadataExtractionError>;
     if (!Number.isSafeInteger(pageCount) || pageCount <= 0) {
-      rendered = err({ kind: 'corrupted-source', format: 'pdf' });
-    } else {
-      rendered = await this.renderOpenedDocument(gateway, source.uri, pageCount);
+      return err({ kind: 'corrupted-source', format: 'pdf' });
     }
 
-    try {
-      await gateway.close(source.uri);
-    } catch {
-      return err({ kind: 'metadata-extraction-failure', format: 'pdf' });
-    }
-    return rendered;
+    return this.renderOpenedDocument(gateway, source.uri, pageCount);
   }
 
   private async renderOpenedDocument(

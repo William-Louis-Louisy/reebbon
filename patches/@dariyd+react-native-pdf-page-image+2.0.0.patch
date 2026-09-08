@@ -1,0 +1,180 @@
+diff --git a/node_modules/@dariyd/react-native-pdf-page-image/android/src/main/java/com/pdfpageimage/PdfPageImageModule.kt b/node_modules/@dariyd/react-native-pdf-page-image/android/src/main/java/com/pdfpageimage/PdfPageImageModule.kt
+index 4e072dc..3fee0c5 100644
+--- a/node_modules/@dariyd/react-native-pdf-page-image/android/src/main/java/com/pdfpageimage/PdfPageImageModule.kt
++++ b/node_modules/@dariyd/react-native-pdf-page-image/android/src/main/java/com/pdfpageimage/PdfPageImageModule.kt
+@@ -57,9 +57,25 @@ class PdfPageImageModule(reactContext: ReactApplicationContext) :
+   }
+ 
+   override fun closePdf(uri: String, promise: Promise) {
+-    pdfCache[uri]?.close()
+-    pdfCache.remove(uri)
+-    promise.resolve(null)
++    try {
++      pdfCache.remove(uri)?.close()
++      promise.resolve(null)
++    } catch (e: Exception) {
++      promise.reject("INTERNAL_ERROR", e.message, e)
++    }
++  }
++
++  override fun invalidate() {
++    val documents = pdfCache.values.toList()
++    pdfCache.clear()
++    for (document in documents) {
++      try {
++        document.close()
++      } catch (_: Exception) {
++        // React Native is tearing down; release every remaining document best-effort.
++      }
++    }
++    super.invalidate()
+   }
+ 
+   private fun getOrOpen(uri: String): PdfDoc {
+@@ -108,14 +124,22 @@ private class PdfDoc(
+   private val context: ReactApplicationContext,
+   private val uriString: String,
+ ) {
+-  private val fileDescriptor: ParcelFileDescriptor
+   private val renderer: PdfRenderer
+   private val pageCache = HashMap<String, WritableNativeMap>()
+   private val tempFiles = mutableListOf<File>()
+ 
+   init {
+-    fileDescriptor = openFileDescriptor(uriString)
+-    renderer = PdfRenderer(fileDescriptor)
++    val descriptor = openFileDescriptor(uriString)
++    renderer = try {
++      PdfRenderer(descriptor)
++    } catch (error: Throwable) {
++      try {
++        descriptor.close()
++      } catch (closeError: Throwable) {
++        error.addSuppressed(closeError)
++      }
++      throw error
++    }
+   }
+ 
+   val pageCount: Int get() = renderer.pageCount
+@@ -136,61 +160,77 @@ private class PdfDoc(
+     }
+ 
+     val page = renderer.openPage(index)
++    try {
++      // maxDimension caps the long edge: shrink the effective scale when the
++      // requested scale would exceed it.
++      var effectiveScale = scale
++      val longEdge = maxOf(page.width, page.height)
++      if (options.maxDimension > 0 && longEdge * effectiveScale > options.maxDimension) {
++        effectiveScale = options.maxDimension.toFloat() / longEdge
++      }
+ 
+-    // maxDimension caps the long edge: shrink the effective scale when the
+-    // requested scale would exceed it.
+-    var effectiveScale = scale
+-    val longEdge = maxOf(page.width, page.height)
+-    if (options.maxDimension > 0 && longEdge * effectiveScale > options.maxDimension) {
+-      effectiveScale = options.maxDimension.toFloat() / longEdge
+-    }
+-
+-    val width = (page.width * effectiveScale).toInt().coerceAtLeast(1)
+-    val height = (page.height * effectiveScale).toInt().coerceAtLeast(1)
++      val width = (page.width * effectiveScale).toInt().coerceAtLeast(1)
++      val height = (page.height * effectiveScale).toInt().coerceAtLeast(1)
+ 
+-    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+-    val canvas = Canvas(bitmap)
+-    // White background — also guarantees JPEG (no alpha) loses nothing.
+-    canvas.drawColor(Color.WHITE)
++      val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
++      try {
++        val canvas = Canvas(bitmap)
++        // White background also guarantees JPEG (no alpha) loses nothing.
++        canvas.drawColor(Color.WHITE)
+ 
+-    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+-    page.close()
++        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+ 
+-    val outFile = File(context.cacheDir, "${UUID.randomUUID()}.${options.fileExtension}")
+-    FileOutputStream(outFile).use { out ->
+-      // JPEG (default) is ~10-20x smaller than PNG for scanned pages.
+-      if (options.isPng) {
+-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+-      } else {
+-        bitmap.compress(Bitmap.CompressFormat.JPEG, options.quality, out)
+-      }
+-    }
+-    bitmap.recycle()
+-    tempFiles.add(outFile)
++        val outFile = File(context.cacheDir, "${UUID.randomUUID()}.${options.fileExtension}")
++        try {
++          val compressed = FileOutputStream(outFile).use { out ->
++            // JPEG (default) is much smaller than PNG for scanned pages.
++            if (options.isPng) {
++              bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
++            } else {
++              bitmap.compress(Bitmap.CompressFormat.JPEG, options.quality, out)
++            }
++          }
++          if (!compressed) {
++            throw IOException("Failed to encode rendered PDF page")
++          }
++          tempFiles.add(outFile)
+ 
+-    val result = WritableNativeMap().apply {
+-      putString("uri", "file://${outFile.absolutePath}")
+-      putInt("width", width)
+-      putInt("height", height)
+-    }
+-    pageCache[cacheKey] = result
++          val result = WritableNativeMap().apply {
++            putString("uri", "file://${outFile.absolutePath}")
++            putInt("width", width)
++            putInt("height", height)
++          }
++          pageCache[cacheKey] = result
+ 
+-    val copy = WritableNativeMap().apply {
+-      putString("uri", "file://${outFile.absolutePath}")
+-      putInt("width", width)
+-      putInt("height", height)
++          val copy = WritableNativeMap().apply {
++            putString("uri", "file://${outFile.absolutePath}")
++            putInt("width", width)
++            putInt("height", height)
++          }
++          return copy
++        } catch (error: Throwable) {
++          outFile.delete()
++          throw error
++        }
++      } finally {
++        bitmap.recycle()
++      }
++    } finally {
++      page.close()
+     }
+-    return copy
+   }
+ 
+   fun close() {
+     pageCache.clear()
+-    for (f in tempFiles) {
+-      f.delete()
++    try {
++      // PdfRenderer owns and closes the ParcelFileDescriptor passed to it.
++      renderer.close()
++    } finally {
++      for (f in tempFiles) {
++        f.delete()
++      }
++      tempFiles.clear()
+     }
+-    tempFiles.clear()
+-    try { renderer.close() } catch (_: Exception) {}
+-    try { fileDescriptor.close() } catch (_: Exception) {}
+   }
+ 
+   private fun openFileDescriptor(uri: String): ParcelFileDescriptor {
