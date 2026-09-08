@@ -11,7 +11,11 @@ import {
   ReaderLoading,
   ReaderScreenChrome,
 } from '../reader-screen-chrome';
-import { getPdfFolio, parsePdfLocation } from './pdf-reader-model';
+import {
+  getPdfFolio,
+  parsePdfLocation,
+  pdfZoomConfiguration,
+} from './pdf-reader-model';
 import { PdfRenditionBridge } from './pdf-rendition-bridge';
 
 const PDF_READING_THEME = 'paper' as const;
@@ -139,12 +143,13 @@ export default function PdfReaderScreen({
           ref={pdfRef}
           enableAnnotationRendering
           enableAntialiasing
-          enableDoubleTapZoom={false}
+          enableDoubleTapZoom={pdfZoomConfiguration.doubleTapEnabled}
           enablePaging
           enableTextSelection={false}
+          fitPolicy={pdfZoomConfiguration.fitPolicy}
           horizontal={false}
-          maxScale={1}
-          minScale={1}
+          maxScale={pdfZoomConfiguration.maximumScale}
+          minScale={pdfZoomConfiguration.minimumScale}
           onError={() =>
             bridge.reportFailure({ kind: 'rendering-failure' })
           }
@@ -157,7 +162,7 @@ export default function PdfReaderScreen({
           onPressLink={() => undefined}
           page={snapshot.initialPage ?? 1}
           renderActivityIndicator={() => <View />}
-          scale={1}
+          scale={pdfZoomConfiguration.initialScale}
           showsHorizontalScrollIndicator={false}
           showsVerticalScrollIndicator={false}
           source={{ uri: snapshot.sourceUri, cache: false }}
