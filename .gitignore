@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# local Git worktrees
+/.worktrees
+
 # Expo
 .expo/
 dist/
