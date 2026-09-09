@@ -11,7 +11,7 @@ export function getImportErrorAlert(error: ImportError): ImportErrorAlert {
       return {
         title: 'Format non pris en charge',
         message:
-          'Ce format n’est pas pris en charge. Sélectionnez un fichier EPUB, PDF ou un dossier JPEG/PNG.',
+          'Ce format n’est pas pris en charge. Sélectionnez un fichier EPUB, PDF, CBZ ou un dossier JPEG/PNG.',
       };
     case 'corrupted-source':
       if (error.format === 'image-directory') {
@@ -43,6 +43,11 @@ export function getImportErrorAlert(error: ImportError): ImportErrorAlert {
             title: 'Nettoyage incomplet',
             message: 'L’import a échoué et le nettoyage local n’a pas pu se terminer. Redémarrez Reebbon avant de réessayer.',
           }
+        : error.operation === 'extract'
+          ? {
+              title: 'Extraction impossible',
+              message: 'L’archive n’a pas pu être décompressée dans le stockage local.',
+            }
         : {
             title: 'Copie impossible',
             message: 'Le contenu n’a pas pu être copié dans le stockage local.',

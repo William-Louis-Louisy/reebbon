@@ -7,6 +7,7 @@ export type {
   ImportSource,
   ImportSourceFor,
   Importer,
+  ReaderFormatForImport,
 } from './importing/importer';
 export { readerFormatForImportFormat } from './importing/importer';
 export type {
@@ -17,6 +18,11 @@ export type {
   MetadataExtractionError,
 } from './importing/book-metadata-extractor';
 export { normalizeBookMetadataText } from './importing/book-metadata-extractor';
+export type {
+  CbzArchiveExtractionError,
+  CbzArchiveExtractor,
+  ExtractedCbzDirectory,
+} from './importing/cbz-archive-extractor';
 export type {
   ImportFileReader,
   ImportFileReadError,
@@ -37,10 +43,18 @@ export type {
   ImportDirectoryReadError,
 } from './importing/import-directory-reader';
 export {
+  createImageDirectoryImportPipeline,
   compareNaturalFileNames,
   createImageDirectoryImporter,
+  type ImageDirectoryImportContext,
+  type ImageDirectoryImportPipeline,
   type ImageDirectoryImporterDependencies,
 } from './importing/import-image-directory';
+export {
+  createCbzImporter,
+  defaultCbzTitle,
+  type CbzImporterDependencies,
+} from './importing/import-cbz';
 export type {
   FileImportSourcePicker,
   FileImportSourcePickerError,

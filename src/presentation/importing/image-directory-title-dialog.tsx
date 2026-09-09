@@ -19,20 +19,23 @@ import { useAppTheme } from '../hooks/use-app-theme';
 const titleMaximumLength = 500;
 const sheetTokens = designSystemTokens.components.readerSettingsSheet;
 
-export interface ImageDirectoryTitleDialogProps {
+export interface ImageImportTitleDialogProps {
   readonly defaultTitle: string;
   readonly onCancel: () => void;
   readonly onConfirm: (title: string) => void;
+  readonly sourceKind: 'directory' | 'cbz';
 }
 
-export function ImageDirectoryTitleDialog({
+export function ImageImportTitleDialog({
   defaultTitle,
   onCancel,
   onConfirm,
-}: ImageDirectoryTitleDialogProps) {
+  sourceKind,
+}: ImageImportTitleDialogProps) {
   const [title, setTitle] = useState(defaultTitle);
   const theme = useAppTheme();
   const normalizedTitle = normalizeBookMetadataText(title);
+  const sourceLabel = sourceKind === 'cbz' ? 'Archive CBZ' : 'Dossier d’images';
 
   return (
     <Modal
@@ -53,7 +56,7 @@ export function ImageDirectoryTitleDialog({
           ]}
         />
         <Pressable
-          accessibilityLabel="Annuler l’import du dossier"
+          accessibilityLabel={`Annuler l’import ${sourceKind === 'cbz' ? 'de l’archive' : 'du dossier'}`}
           accessibilityRole="button"
           onPress={onCancel}
           style={StyleSheet.absoluteFill}
@@ -67,12 +70,12 @@ export function ImageDirectoryTitleDialog({
           <SafeAreaView edges={['bottom']}>
             <View style={styles.content}>
               <AppText tone="accent" variant="eyebrow">
-                Dossier d’images
+                {sourceLabel}
               </AppText>
               <AppText variant="screenTitle">Titre de l’ouvrage</AppText>
               <AppText tone="muted">
-                Le nom du dossier est proposé par défaut. Vous pouvez le modifier avant
-                l’import.
+                {sourceKind === 'cbz' ? 'Le nom de l’archive' : 'Le nom du dossier'} est
+                proposé par défaut. Vous pouvez le modifier avant l’import.
               </AppText>
               <TextInput
                 accessibilityLabel="Titre de l’ouvrage image"

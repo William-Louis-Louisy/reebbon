@@ -3,16 +3,20 @@ import { startTransition, useCallback, useEffect, useRef, useState } from 'react
 import { Alert, Modal } from 'react-native';
 
 import {
+  createCbzImporter,
   createEpubImporter,
   createEpubFontSizePreferenceService,
   createImageDirectoryImporter,
+  createImageDirectoryImportPipeline,
   createImportFormatDetector,
   createListLibraryBooks,
   createPdfImporter,
   createReadingProgressService,
+  defaultCbzTitle,
   type DirectoryImportSource,
   type EpubFontSizePreferenceService,
   type ImportError,
+  type FileImportSource,
   type LibraryBookItem,
   type ReaderProgress,
   type ReadingProgressService,
@@ -27,6 +31,7 @@ import {
 import {
   clearEpubRendererCache,
   EpubMetadataExtractor,
+  ExpoCbzArchiveExtractor,
   ExpoDirectoryImportSourcePicker,
   ExpoFileImportSourcePicker,
   ExpoImportDirectoryReader,
@@ -40,7 +45,7 @@ import {
   prepareEpubForRendering,
   type LocalStorage,
 } from '@/infrastructure';
-import { ImageDirectoryTitleDialog } from '@/presentation/importing/image-directory-title-dialog';
+import { ImageImportTitleDialog } from '@/presentation/importing/image-directory-title-dialog';
 import { getImportErrorAlert } from '@/presentation/importing/import-error-alert';
 import EpubReaderScreen from '@/presentation/reading/epub/epub-reader-screen';
 import PdfReaderScreen from '@/presentation/reading/pdf/pdf-reader-screen';
@@ -53,10 +58,17 @@ import {
 
 const loadingState: LibraryScreenState = { status: 'loading' };
 const failureState: LibraryScreenState = { status: 'failure' };
-const importMimeTypes = ['application/epub+zip', 'application/pdf'] as const;
+const importMimeTypes = [
+  'application/epub+zip',
+  'application/pdf',
+  'application/vnd.comicbook+zip',
+  'application/x-cbz',
+  'application/zip',
+] as const;
 const importSourcePicker = new ExpoFileImportSourcePicker();
 const importDirectoryPicker = new ExpoDirectoryImportSourcePicker();
 const importDirectoryReader = new ExpoImportDirectoryReader();
+const cbzArchiveExtractor = new ExpoCbzArchiveExtractor();
 const importFileReader = new ExpoImportFileReader();
 const importFormatDetector = createImportFormatDetector({ files: importFileReader });
 const epubMetadataExtractor = new EpubMetadataExtractor(importFileReader);
@@ -65,6 +77,7 @@ const pdfMetadataExtractor = new PdfMetadataExtractor(pdfFirstPageRenderer);
 
 type ImportFlowResult =
   | { readonly status: 'cancelled' }
+  | { readonly status: 'cbz-selected'; readonly source: FileImportSource }
   | { readonly status: 'success'; readonly books: readonly LibraryBookItem[] }
   | {
       readonly status: 'selection-failure';
@@ -73,6 +86,10 @@ type ImportFlowResult =
   | { readonly status: 'storage-failure' }
   | { readonly status: 'library-failure' }
   | { readonly status: 'import-failure'; readonly error: ImportError };
+
+type PendingImageImport =
+  | { readonly kind: 'directory'; readonly source: DirectoryImportSource }
+  | { readonly kind: 'cbz'; readonly source: FileImportSource };
 
 interface EpubReadingSession {
   readonly kind: 'epub';
@@ -104,8 +121,8 @@ export default function LibraryRoute() {
   const [reloadKey, setReloadKey] = useState(0);
   const [state, setState] = useState<LibraryScreenState>(loadingState);
   const [isImporting, setIsImporting] = useState(false);
-  const [pendingImageDirectory, setPendingImageDirectory] =
-    useState<DirectoryImportSource | null>(null);
+  const [pendingImageImport, setPendingImageImport] =
+    useState<PendingImageImport | null>(null);
   const [readingSession, setReadingSession] =
     useState<ReadingSession | null>(null);
   const isOpeningReader = useRef(false);
@@ -134,6 +151,10 @@ export default function LibraryRoute() {
   };
 
   const completeImport = (result: ImportFlowResult) => {
+    if (result.status === 'cbz-selected') {
+      setPendingImageImport({ kind: 'cbz', source: result.source });
+      return;
+    }
     if (result.status === 'success') {
       setState({ status: 'ready', books: result.books });
       return;
@@ -174,7 +195,7 @@ export default function LibraryRoute() {
           return;
         }
         if (selected.value !== null) {
-          setPendingImageDirectory(selected.value);
+          setPendingImageImport({ kind: 'directory', source: selected.value });
         }
       })
       .catch(() => {
@@ -188,15 +209,19 @@ export default function LibraryRoute() {
       });
   };
 
-  const importImageDirectory = (title: string) => {
-    const source = pendingImageDirectory;
-    setPendingImageDirectory(null);
-    if (source === null || isImporting) {
+  const importPendingImages = (title: string) => {
+    const pending = pendingImageImport;
+    setPendingImageImport(null);
+    if (pending === null || isImporting) {
       return;
     }
 
     setIsImporting(true);
-    void runImageDirectoryImport({ ...source, title })
+    const operation =
+      pending.kind === 'directory'
+        ? runImageDirectoryImport({ ...pending.source, title })
+        : runCbzImport({ ...pending.source, title });
+    void operation
       .then(completeImport)
       .catch(() => {
         showImportFailure({ status: 'storage-failure' });
@@ -310,11 +335,16 @@ export default function LibraryRoute() {
         onRetryPress={retry}
         state={state}
       />
-      {pendingImageDirectory === null ? null : (
-        <ImageDirectoryTitleDialog
-          defaultTitle={pendingImageDirectory.name}
-          onCancel={() => setPendingImageDirectory(null)}
-          onConfirm={importImageDirectory}
+      {pendingImageImport === null ? null : (
+        <ImageImportTitleDialog
+          defaultTitle={
+            pendingImageImport.kind === 'cbz'
+              ? defaultCbzTitle(pendingImageImport.source.name)
+              : pendingImageImport.source.name
+          }
+          onCancel={() => setPendingImageImport(null)}
+          onConfirm={importPendingImages}
+          sourceKind={pendingImageImport.kind}
         />
       )}
       <Modal
@@ -560,6 +590,9 @@ async function runFileImport(): Promise<ImportFlowResult> {
     if (!detected.ok) {
       return { status: 'import-failure', error: detected.error };
     }
+    if (detected.value === 'cbz') {
+      return { status: 'cbz-selected', source: selected.value };
+    }
     if (detected.value !== 'epub' && detected.value !== 'pdf') {
       return {
         status: 'import-failure',
@@ -643,6 +676,46 @@ async function runImageDirectoryImport(
   }
 }
 
+async function runCbzImport(source: FileImportSource): Promise<ImportFlowResult> {
+  try {
+    const initialized = await initializeLocalStorage();
+    if (!initialized.ok) {
+      return { status: 'storage-failure' };
+    }
+
+    try {
+      const imageDependencies = {
+        books: initialized.value.books,
+        content: initialized.value.content,
+        detector: importFormatDetector,
+        directories: importDirectoryReader,
+        files: importFileReader,
+        createId: randomUUID,
+        now: () => new Date(),
+      };
+      const importer = createCbzImporter({
+        archives: cbzArchiveExtractor,
+        detector: importFormatDetector,
+        images: createImageDirectoryImportPipeline(imageDependencies),
+        createExtractionId: randomUUID,
+      });
+      const imported = await importer.importBook(source);
+      if (!imported.ok) {
+        return { status: 'import-failure', error: imported.error };
+      }
+
+      const library = await listLibrary(initialized.value);
+      return library.status === 'ready'
+        ? { status: 'success', books: library.books }
+        : { status: 'library-failure' };
+    } finally {
+      await closeQuietly(initialized.value);
+    }
+  } catch {
+    return { status: 'storage-failure' };
+  }
+}
+
 async function listLibrary(storage: LocalStorage): Promise<LibraryScreenState> {
   const books = await createListLibraryBooks(storage)();
   return books.ok ? { status: 'ready', books: books.value } : failureState;
@@ -656,7 +729,12 @@ async function closeQuietly(storage: LocalStorage): Promise<void> {
   }
 }
 
-function showImportFailure(result: Exclude<ImportFlowResult, { status: 'success' }>) {
+function showImportFailure(
+  result: Exclude<
+    ImportFlowResult,
+    { status: 'success' } | { status: 'cbz-selected' }
+  >,
+) {
   switch (result.status) {
     case 'cancelled':
       return;

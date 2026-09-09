@@ -7,6 +7,7 @@ export interface FileImportSource {
   readonly uri: string;
   readonly name: string;
   readonly mimeType?: string;
+  readonly title?: string;
 }
 
 export interface DirectoryImportSource {
