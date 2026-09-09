@@ -201,7 +201,7 @@ class MemoryCbzArchiveExtractor implements CbzArchiveExtractor {
         };
       },
     };
-    const extracted = extractCbzChunks([this.archive], target);
+    const extracted = await extractCbzChunks([this.archive], target);
     return extracted.ok
       ? ok({ uri: rootUri })
       : err(
