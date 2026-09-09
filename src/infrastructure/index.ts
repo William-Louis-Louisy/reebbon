@@ -25,6 +25,7 @@ export {
   prepareEpubForRendering,
 } from './reading/expo-epub-renderer-resources';
 export { NativePdfPageThumbnailProvider } from './reading/native-pdf-page-thumbnail-provider';
+export { ExpoImageSetPageProvider } from './reading/expo-image-set-page-provider';
 export type {
   LocalStorage,
   LocalStorageDependencies,
