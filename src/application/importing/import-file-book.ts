@@ -1,12 +1,7 @@
 import { err, ok, type Book, type Result } from '../../domain';
 
 import type { BookRepository } from '../library/book-repository';
-import type { RepositoryError } from '../shared/repository-error';
-import type {
-  BookContentStore,
-  FileStorageError,
-  FileStorageOperation,
-} from '../storage/book-content-store';
+import type { BookContentStore } from '../storage/book-content-store';
 import type {
   BookMetadataExtractor,
   ExtractedBookMetadata,
@@ -20,12 +15,15 @@ import type {
 } from './import-format-detector';
 import type {
   FileImportSource,
-  ImportError,
   ImportFormat,
-  ImportResult,
   Importer,
   ReaderFormatForImport,
 } from './importer';
+import {
+  callImportStorage,
+  executeImportTransaction,
+  storageErrorForImport,
+} from './import-transaction';
 
 export type FileBookImportFormat = 'epub' | 'pdf';
 
@@ -44,12 +42,6 @@ export interface FileBookImporterConfiguration<F extends FileBookImportFormat> {
   readonly storedFileName: string;
   readonly sourceExtension: `.${string}`;
   readonly fallbackTitle: string;
-}
-
-interface ImportProgress {
-  stagingAttempted: boolean;
-  commitAttempted: boolean;
-  saveAttempted: boolean;
 }
 
 export function createFileBookImporter<F extends FileBookImportFormat>(
@@ -76,94 +68,60 @@ export function createFileBookImporter<F extends FileBookImportFormat>(
         return err(extracted.error);
       }
 
-      const identifiers = createIdentifiers(dependencies.createId);
-      if (identifiers === null) {
-        return err({ kind: 'persistence-failure', operation: 'save' });
-      }
-
-      const { bookId, importId } = identifiers;
-      const progress: ImportProgress = {
-        stagingAttempted: false,
-        commitAttempted: false,
-        saveAttempted: false,
-      };
-      const fail = async (error: ImportError) => {
-        const cleanupError = await rollbackImport(
-          dependencies,
-          importId,
-          bookId,
-          progress,
-        );
-        return err(cleanupError ?? error);
-      };
-
-      progress.stagingAttempted = true;
-      const staging = await callStorage(
-        () => dependencies.content.createStagingArea(importId),
-        'create-staging-area',
-      );
-      if (!staging.ok) {
-        return fail(storageErrorForImport(source, staging.error, 'stage'));
-      }
-
-      const stagedFile = await callStorage(
-        () =>
-          dependencies.content.stageFile(
-            importId,
-            source.uri,
-            configuration.storedFileName,
-          ),
-        'stage-file',
-      );
-      if (!stagedFile.ok) {
-        return fail(storageErrorForImport(source, stagedFile.error, 'copy'));
-      }
-
-      const extractedCover = extracted.value.cover;
-      let coverFileName: string | undefined;
-      if (extractedCover !== undefined) {
-        const stagedCoverFileName = fileNameForCover(extractedCover.mediaType);
-        coverFileName = stagedCoverFileName;
-        const stagedCover = await callStorage(
-          () =>
-            dependencies.content.stageBytes(
-              importId,
-              extractedCover.bytes,
-              stagedCoverFileName,
-            ),
-          'stage-bytes',
-        );
-        if (!stagedCover.ok) {
-          return fail(storageErrorForImport(source, stagedCover.error, 'copy'));
-        }
-      }
-
-      progress.commitAttempted = true;
-      const committed = await callStorage(
-        () => dependencies.content.commitStagingArea(importId, bookId),
-        'commit-staging-area',
-      );
-      if (!committed.ok) {
-        return fail(storageErrorForImport(source, committed.error, 'copy'));
-      }
-
-      const book = createBook(
-        configuration,
+      return executeImportTransaction<F>(
         source,
-        extracted.value,
-        bookId,
-        committed.value.uri,
-        coverFileName,
-        safelyCreateDate(dependencies.now),
+        dependencies,
+        async (importId) => {
+          const stagedFile = await callImportStorage(
+            () =>
+              dependencies.content.stageFile(
+                importId,
+                source.uri,
+                configuration.storedFileName,
+              ),
+            'stage-file',
+          );
+          if (!stagedFile.ok) {
+            return err(storageErrorForImport(source, stagedFile.error, 'copy'));
+          }
+
+          const extractedCover = extracted.value.cover;
+          let coverFileName: string | undefined;
+          if (extractedCover !== undefined) {
+            const stagedCoverFileName = fileNameForCover(extractedCover.mediaType);
+            coverFileName = stagedCoverFileName;
+            const stagedCover = await callImportStorage(
+              () =>
+                dependencies.content.stageBytes(
+                  importId,
+                  extractedCover.bytes,
+                  stagedCoverFileName,
+                ),
+              'stage-bytes',
+            );
+            if (!stagedCover.ok) {
+              return err(storageErrorForImport(source, stagedCover.error, 'copy'));
+            }
+          }
+
+          return ok({
+            createBook: (
+              bookId: string,
+              contentUri: string,
+              createdAt: Date,
+            ) =>
+              createBook(
+                configuration,
+                source,
+                extracted.value,
+                bookId,
+                contentUri,
+                coverFileName,
+                createdAt,
+              ),
+          });
+        },
       );
-
-      progress.saveAttempted = true;
-      const saved = await callRepository(() => dependencies.books.save(book), 'write');
-      if (!saved.ok) {
-        return fail({ kind: 'persistence-failure', operation: 'save' });
-      }
-
-      return ok({ book } satisfies ImportResult<F>);
     },
   };
 }
@@ -255,102 +213,6 @@ async function callMetadataExtractor<F extends FileBookImportFormat>(
   }
 }
 
-function createIdentifiers(
-  createId: () => string,
-): { readonly bookId: string; readonly importId: string } | null {
-  try {
-    const bookId = createId();
-    const importId = `import-${createId()}`;
-    return isSafeIdentifier(bookId) && isSafeIdentifier(importId)
-      ? { bookId, importId }
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function isSafeIdentifier(value: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value);
-}
-
-function safelyCreateDate(now: () => Date): Date {
-  try {
-    return now();
-  } catch {
-    return new Date(Number.NaN);
-  }
-}
-
 function joinUri(root: string, name: string): string {
   return `${root.replace(/\/+$/, '')}/${name}`;
-}
-
-async function callStorage<T>(
-  operation: () => Promise<Result<T, FileStorageError>>,
-  fallbackOperation: FileStorageOperation,
-): Promise<Result<T, FileStorageError>> {
-  try {
-    return await operation();
-  } catch {
-    return err({ kind: 'filesystem-failure', operation: fallbackOperation });
-  }
-}
-
-async function callRepository(
-  operation: () => Promise<Result<void, RepositoryError>>,
-  fallbackOperation: RepositoryError['operation'],
-): Promise<Result<void, RepositoryError>> {
-  try {
-    return await operation();
-  } catch {
-    return err({ kind: 'persistence-failure', operation: fallbackOperation });
-  }
-}
-
-function storageErrorForImport(
-  source: FileImportSource,
-  error: FileStorageError,
-  operation: 'stage' | 'copy',
-): ImportError {
-  return error.kind === 'permission-or-access-failure'
-    ? { kind: 'permission-or-access-failure', source }
-    : { kind: 'filesystem-failure', operation };
-}
-
-async function rollbackImport<F extends FileBookImportFormat>(
-  dependencies: FileBookImporterDependencies<F>,
-  importId: string,
-  bookId: string,
-  progress: ImportProgress,
-): Promise<ImportError | undefined> {
-  let rollbackError: ImportError | undefined;
-
-  if (progress.saveAttempted) {
-    const deleted = await callRepository(() => dependencies.books.delete(bookId), 'delete');
-    if (!deleted.ok) {
-      rollbackError = { kind: 'persistence-failure', operation: 'rollback' };
-    }
-  }
-
-  if (progress.commitAttempted) {
-    const removedBookFiles = await callStorage(
-      () => dependencies.content.removeBookFiles(bookId),
-      'remove-book-files',
-    );
-    if (!removedBookFiles.ok && rollbackError === undefined) {
-      rollbackError = { kind: 'filesystem-failure', operation: 'cleanup' };
-    }
-  }
-
-  if (progress.stagingAttempted) {
-    const removedStaging = await callStorage(
-      () => dependencies.content.removeStagingArea(importId),
-      'remove-staging-area',
-    );
-    if (!removedStaging.ok && rollbackError === undefined) {
-      rollbackError = { kind: 'filesystem-failure', operation: 'cleanup' };
-    }
-  }
-
-  return rollbackError;
 }

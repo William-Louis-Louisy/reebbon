@@ -1,4 +1,5 @@
 export type {
+  DirectoryImportSource,
   FileImportSource,
   ImportError,
   ImportFormat,
@@ -26,6 +27,20 @@ export {
   type ImportFormatDetector,
   type ImportFormatDetectorDependencies,
 } from './importing/import-format-detector';
+export type {
+  DirectoryImportSourcePicker,
+  DirectoryImportSourcePickerError,
+} from './importing/directory-import-source-picker';
+export type {
+  ImportDirectoryEntry,
+  ImportDirectoryReader,
+  ImportDirectoryReadError,
+} from './importing/import-directory-reader';
+export {
+  compareNaturalFileNames,
+  createImageDirectoryImporter,
+  type ImageDirectoryImporterDependencies,
+} from './importing/import-image-directory';
 export type {
   FileImportSourcePicker,
   FileImportSourcePickerError,

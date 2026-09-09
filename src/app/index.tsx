@@ -5,12 +5,14 @@ import { Alert, Modal } from 'react-native';
 import {
   createEpubImporter,
   createEpubFontSizePreferenceService,
+  createImageDirectoryImporter,
   createImportFormatDetector,
   createListLibraryBooks,
   createPdfImporter,
   createReadingProgressService,
-  type ImportError,
+  type DirectoryImportSource,
   type EpubFontSizePreferenceService,
+  type ImportError,
   type LibraryBookItem,
   type ReaderProgress,
   type ReadingProgressService,
@@ -25,7 +27,9 @@ import {
 import {
   clearEpubRendererCache,
   EpubMetadataExtractor,
+  ExpoDirectoryImportSourcePicker,
   ExpoFileImportSourcePicker,
+  ExpoImportDirectoryReader,
   ExpoImportFileReader,
   ExpoPdfFirstPageRenderer,
   initializeLocalStorage,
@@ -36,6 +40,7 @@ import {
   prepareEpubForRendering,
   type LocalStorage,
 } from '@/infrastructure';
+import { ImageDirectoryTitleDialog } from '@/presentation/importing/image-directory-title-dialog';
 import { getImportErrorAlert } from '@/presentation/importing/import-error-alert';
 import EpubReaderScreen from '@/presentation/reading/epub/epub-reader-screen';
 import PdfReaderScreen from '@/presentation/reading/pdf/pdf-reader-screen';
@@ -50,16 +55,21 @@ const loadingState: LibraryScreenState = { status: 'loading' };
 const failureState: LibraryScreenState = { status: 'failure' };
 const importMimeTypes = ['application/epub+zip', 'application/pdf'] as const;
 const importSourcePicker = new ExpoFileImportSourcePicker();
+const importDirectoryPicker = new ExpoDirectoryImportSourcePicker();
+const importDirectoryReader = new ExpoImportDirectoryReader();
 const importFileReader = new ExpoImportFileReader();
 const importFormatDetector = createImportFormatDetector({ files: importFileReader });
 const epubMetadataExtractor = new EpubMetadataExtractor(importFileReader);
 const pdfFirstPageRenderer = new ExpoPdfFirstPageRenderer(importFileReader);
 const pdfMetadataExtractor = new PdfMetadataExtractor(pdfFirstPageRenderer);
 
-type FileImportFlowResult =
+type ImportFlowResult =
   | { readonly status: 'cancelled' }
   | { readonly status: 'success'; readonly books: readonly LibraryBookItem[] }
-  | { readonly status: 'selection-failure' }
+  | {
+      readonly status: 'selection-failure';
+      readonly selection: 'file' | 'directory';
+    }
   | { readonly status: 'storage-failure' }
   | { readonly status: 'library-failure' }
   | { readonly status: 'import-failure'; readonly error: ImportError };
@@ -94,6 +104,8 @@ export default function LibraryRoute() {
   const [reloadKey, setReloadKey] = useState(0);
   const [state, setState] = useState<LibraryScreenState>(loadingState);
   const [isImporting, setIsImporting] = useState(false);
+  const [pendingImageDirectory, setPendingImageDirectory] =
+    useState<DirectoryImportSource | null>(null);
   const [readingSession, setReadingSession] =
     useState<ReadingSession | null>(null);
   const isOpeningReader = useRef(false);
@@ -121,20 +133,71 @@ export default function LibraryRoute() {
     });
   };
 
-  const importBook = () => {
+  const completeImport = (result: ImportFlowResult) => {
+    if (result.status === 'success') {
+      setState({ status: 'ready', books: result.books });
+      return;
+    }
+    showImportFailure(result);
+  };
+
+  const importFile = () => {
     if (isImporting) {
       return;
     }
 
     setIsImporting(true);
     void runFileImport()
-      .then((result) => {
-        if (result.status === 'success') {
-          setState({ status: 'ready', books: result.books });
+      .then(completeImport)
+      .catch(() => {
+        showImportFailure({ status: 'storage-failure' });
+      })
+      .finally(() => {
+        setIsImporting(false);
+      });
+  };
+
+  const selectImageDirectory = () => {
+    if (isImporting) {
+      return;
+    }
+
+    setIsImporting(true);
+    void importDirectoryPicker
+      .pickDirectory()
+      .then((selected) => {
+        if (!selected.ok) {
+          showImportFailure({
+            status: 'selection-failure',
+            selection: 'directory',
+          });
           return;
         }
-        showImportFailure(result);
+        if (selected.value !== null) {
+          setPendingImageDirectory(selected.value);
+        }
       })
+      .catch(() => {
+        showImportFailure({
+          status: 'selection-failure',
+          selection: 'directory',
+        });
+      })
+      .finally(() => {
+        setIsImporting(false);
+      });
+  };
+
+  const importImageDirectory = (title: string) => {
+    const source = pendingImageDirectory;
+    setPendingImageDirectory(null);
+    if (source === null || isImporting) {
+      return;
+    }
+
+    setIsImporting(true);
+    void runImageDirectoryImport({ ...source, title })
+      .then(completeImport)
       .catch(() => {
         showImportFailure({ status: 'storage-failure' });
       })
@@ -242,10 +305,18 @@ export default function LibraryRoute() {
       <LibraryScreen
         isImporting={isImporting}
         onBookPress={openBook}
-        onImportPress={importBook}
+        onFileImportPress={importFile}
+        onImageDirectoryImportPress={selectImageDirectory}
         onRetryPress={retry}
         state={state}
       />
+      {pendingImageDirectory === null ? null : (
+        <ImageDirectoryTitleDialog
+          defaultTitle={pendingImageDirectory.name}
+          onCancel={() => setPendingImageDirectory(null)}
+          onConfirm={importImageDirectory}
+        />
+      )}
       <Modal
         animationType="none"
         onRequestClose={closeReader}
@@ -475,11 +546,11 @@ async function loadLibrary(): Promise<LibraryScreenState> {
   }
 }
 
-async function runFileImport(): Promise<FileImportFlowResult> {
+async function runFileImport(): Promise<ImportFlowResult> {
   try {
     const selected = await importSourcePicker.pickFile({ mimeTypes: importMimeTypes });
     if (!selected.ok) {
-      return { status: 'selection-failure' };
+      return { status: 'selection-failure', selection: 'file' };
     }
     if (selected.value === null) {
       return { status: 'cancelled' };
@@ -536,6 +607,42 @@ async function runFileImport(): Promise<FileImportFlowResult> {
   }
 }
 
+async function runImageDirectoryImport(
+  source: DirectoryImportSource,
+): Promise<ImportFlowResult> {
+  try {
+    const initialized = await initializeLocalStorage();
+    if (!initialized.ok) {
+      return { status: 'storage-failure' };
+    }
+
+    try {
+      const importer = createImageDirectoryImporter({
+        books: initialized.value.books,
+        content: initialized.value.content,
+        detector: importFormatDetector,
+        directories: importDirectoryReader,
+        files: importFileReader,
+        createId: randomUUID,
+        now: () => new Date(),
+      });
+      const imported = await importer.importBook(source);
+      if (!imported.ok) {
+        return { status: 'import-failure', error: imported.error };
+      }
+
+      const library = await listLibrary(initialized.value);
+      return library.status === 'ready'
+        ? { status: 'success', books: library.books }
+        : { status: 'library-failure' };
+    } finally {
+      await closeQuietly(initialized.value);
+    }
+  } catch {
+    return { status: 'storage-failure' };
+  }
+}
+
 async function listLibrary(storage: LocalStorage): Promise<LibraryScreenState> {
   const books = await createListLibraryBooks(storage)();
   return books.ok ? { status: 'ready', books: books.value } : failureState;
@@ -549,14 +656,16 @@ async function closeQuietly(storage: LocalStorage): Promise<void> {
   }
 }
 
-function showImportFailure(result: Exclude<FileImportFlowResult, { status: 'success' }>) {
+function showImportFailure(result: Exclude<ImportFlowResult, { status: 'success' }>) {
   switch (result.status) {
     case 'cancelled':
       return;
     case 'selection-failure':
       Alert.alert(
         'Sélection impossible',
-        'Reebbon n’a pas pu accéder au sélecteur de fichiers.',
+        result.selection === 'directory'
+          ? 'Reebbon n’a pas pu accéder au sélecteur de dossiers.'
+          : 'Reebbon n’a pas pu accéder au sélecteur de fichiers.',
       );
       return;
     case 'storage-failure':

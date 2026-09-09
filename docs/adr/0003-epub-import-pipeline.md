@@ -1,10 +1,10 @@
-# ADR 0003 - Pipeline commun d'import de fichiers
+# ADR 0003 - Pipeline commun d'import de contenus
 
 - Statut : accepte
 - Date : 2026-09-01
 - Issue : #6
 - Backlog : IMP-01
-- Revisions : 2026-09-07, Issue #18, IMP-02; 2026-09-08, Issues #60 et #62
+- Revisions : 2026-09-07, Issue #18, IMP-02; 2026-09-08, Issues #60 et #62; 2026-09-09, Issue #22, IMP-03
 
 ## Contexte
 
@@ -14,6 +14,8 @@ La revision IMP-04 ajoute la detection generique et l'extraction OPF sans modifi
 
 La revision IMP-02 ajoute le PDF sans creer un second orchestrateur d'import. Elle doit extraire les metadonnees disponibles, generer une couverture locale depuis la premiere page et conserver les memes garanties de staging et de compensation que l'EPUB.
 
+La revision IMP-03 ajoute les dossiers JPEG/PNG. Leur acces fourni par le picker peut etre temporaire, notamment sur iOS : toutes les pages retenues doivent donc etre copiees dans le stockage possede avant la fin du flux. La quantite attendue de 200 pages ou plus interdit de charger les images completes dans le heap JavaScript pour les valider.
+
 L'Issue #60 documente des fermetures brutales sur Android avec des PDF volumineux ou riches en images. L'audit confirme qu'apres le rendu natif de couverture, `File.bytes()` alloue encore un buffer JavaScript de la taille complete de la source et que `pdf-lib` le conserve pendant son analyse pour deux champs facultatifs. A l'inverse, sur Android, le renderer de couverture ouvre un descripteur de fichier et dimensionne son bitmap a 640 px avant allocation.
 
 L'Issue #62 suit un crash Android observe apres la persistance reussie d'un PDF lourd. Aucun appareil ni log systeme n'est disponible dans l'environnement d'implementation pour classer ce crash. L'analyse statique exclut une nouvelle lecture du binaire pendant le rafraichissement de bibliotheque, mais identifie des chemins natifs ou `PdfRenderer.Page`, `Bitmap`, le descripteur ou le cache du TurboModule ne sont pas liberes de maniere deterministe.
@@ -22,7 +24,12 @@ L'Issue #62 suit un crash Android observe apres la persistance reussie d'un PDF 
 
 - Le picker de fichiers est un port applicatif. Son adaptateur `ExpoFileImportSourcePicker` utilise `expo-document-picker`, demande une copie cache lisible immediatement et valide le resultat natif avant de produire un `FileImportSource`.
 - `createFileBookImporter` porte l'orchestration transactionnelle commune aux fichiers EPUB et PDF. Les wrappers `createEpubImporter` et `createPdfImporter` fixent uniquement le format, le nom local et le titre de repli; ils dependent des memes ports applicatifs.
+- `executeImportTransaction` porte desormais la creation du staging, son commit, la sauvegarde SQLite et la compensation commune a toutes les sources. Les importers de fichiers et de dossiers ne definissent que la preparation de leur contenu et la construction du livre.
 - Le flux cree un staging, copie la source sous le nom canonique `book.epub` ou `book.pdf`, deplace le staging vers `Documents/reebbon/books/{bookId}`, puis sauvegarde les metadonnees dans SQLite.
+- Le picker de dossiers et sa lecture sont des ports applicatifs. Leurs adaptateurs `expo-file-system` valident les valeurs natives avant de les exposer au pipeline; une annulation Android ou iOS reste un resultat attendu et silencieux.
+- L'import Images ne parcourt que les fichiers directement contenus dans le dossier choisi. Il ignore les sous-dossiers et les extensions autres que `.jpg`, `.jpeg` et `.png`, trie les noms par segments numeriques et texte avec un departage deterministe, puis verifie les signatures JPEG/PNG avec un prefixe de huit octets.
+- Les pages Images sont copiees sequentiellement sous les noms `page-000001.jpg` ou `.png`, dans l'ordre de lecture. Le livre persiste utilise le format `images`, le repertoire possede comme `fileUri`, la premiere page comme `coverUri` et le nombre de pages retenues comme `totalPages`.
+- Le nom du dossier est propose comme titre avant l'import. La presentation permet de l'editer, puis le pipeline normalise la valeur retenue et conserve le nom du dossier comme repli.
 - `ImportFormatDetector` combine le type de source, l'extension ou le MIME declare et une signature binaire lue par le port `ImportFileReader`. Les dossiers deviennent `image-directory`; EPUB et CBZ exigent une signature ZIP, PDF exige `%PDF-`. Une declaration dont la signature ne correspond pas est une source corrompue typee.
 - `BookMetadataExtractor<F>` est le contrat generique reutilisable par EPUB, PDF et Images. Son implementation EPUB reste dans l'infrastructure et utilise le meme lecteur binaire injecte.
 - L'extracteur EPUB valide `mimetype`, resout `META-INF/container.xml`, puis lit l'OPF. `fflate` decompresse uniquement les entrees ciblees et `fast-xml-parser` valide les documents XML localement, sans composant natif ni acces reseau.
@@ -41,11 +48,15 @@ L'Issue #62 suit un crash Android observe apres la persistance reussie d'un PDF 
 
 ## Consequences
 
-Les imports EPUB et PDF partagent desormais le meme pipeline sans schema SQLite supplementaire et sans acces FileSystem dans la presentation. Les imports Images et CBZ pourront reutiliser les memes contrats et le meme stockage, mais leurs implementations restent hors de cette Issue.
+Les imports EPUB, PDF et dossiers Images partagent desormais la meme transaction sans schema SQLite supplementaire et sans acces FileSystem dans la presentation. CBZ pourra reutiliser la preparation d'un livre Images apres decompression, mais reste hors de cette Issue.
+
+L'import d'un dossier de 200 pages effectue une lecture bornee et une copie par page, sans conserver les binaires complets en memoire JavaScript. La validation automatisee couvre 205 pages; le temps et le comportement du picker doivent encore etre mesures sur appareils iOS et Android representatifs.
 
 `expo-document-picker`, `expo-crypto` et `@dariyd/react-native-pdf-page-image` doivent etre presents dans les development builds iOS et Android. Les tests Node valident l'orchestration, la compensation et le contrat du rendu PDF, mais ne remplacent pas un test du picker et du moteur PDF natif sur appareil.
 
 Le lecteur PDF reste hors du perimetre d'IMP-02. Cette decision ne choisit ni le moteur de lecture ni ses interactions; elle ne produit que les ressources locales necessaires a la bibliotheque.
+
+Le lecteur Images, la navigation, le zoom, le sens de lecture et la double page restent hors du perimetre d'IMP-03. Les sous-dossiers ne sont pas interpretes implicitement comme des chapitres.
 
 L'archive EPUB compressee est lue en memoire une fois par import, puis seules les entrees de metadonnees et de couverture sont decompressees avec des limites explicites. Cette approche evite d'extraire tout l'ouvrage et reste compatible Expo, mais les imports EPUB tres volumineux devront etre mesures sur appareils avant d'envisager un lecteur ZIP aleatoire ou streaming.
 

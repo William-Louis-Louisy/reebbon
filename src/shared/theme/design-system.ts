@@ -205,6 +205,9 @@ export const designSystemTokens = {
     },
   },
   components: {
+    libraryImportAction: {
+      borderWidth: 1.5,
+    },
     appColorSchemeControl: {
       borderWidth: 1,
       optionMinWidth: 88,

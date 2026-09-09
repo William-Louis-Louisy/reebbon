@@ -27,7 +27,8 @@ export type LibraryScreenState =
 export interface LibraryScreenProps {
   readonly state: LibraryScreenState;
   readonly isImporting: boolean;
-  readonly onImportPress: () => void;
+  readonly onFileImportPress: () => void;
+  readonly onImageDirectoryImportPress: () => void;
   readonly onBookPress: (book: Book) => void;
   readonly onRetryPress: () => void;
 }
@@ -36,7 +37,8 @@ export default function LibraryScreen({
   state,
   isImporting,
   onBookPress,
-  onImportPress,
+  onFileImportPress,
+  onImageDirectoryImportPress,
   onRetryPress,
 }: LibraryScreenProps) {
   const theme = useAppTheme();
@@ -62,7 +64,8 @@ export default function LibraryScreen({
           keyExtractor={(item) => item.book.id}
           ListEmptyComponent={
             <LibraryStatus
-              onImportPress={onImportPress}
+              onFileImportPress={onFileImportPress}
+              onImageDirectoryImportPress={onImageDirectoryImportPress}
               onRetryPress={onRetryPress}
               isImporting={isImporting}
               status={state.status}
@@ -71,7 +74,8 @@ export default function LibraryScreen({
           ListHeaderComponent={
             <LibraryHeader
               isImporting={isImporting}
-              onImportPress={onImportPress}
+              onFileImportPress={onFileImportPress}
+              onImageDirectoryImportPress={onImageDirectoryImportPress}
               showImportAction={books.length > 0}
             />
           }
@@ -94,13 +98,15 @@ export default function LibraryScreen({
 
 interface LibraryHeaderProps {
   readonly isImporting: boolean;
-  readonly onImportPress: () => void;
+  readonly onFileImportPress: () => void;
+  readonly onImageDirectoryImportPress: () => void;
   readonly showImportAction: boolean;
 }
 
 function LibraryHeader({
   isImporting,
-  onImportPress,
+  onFileImportPress,
+  onImageDirectoryImportPress,
   showImportAction,
 }: LibraryHeaderProps) {
   return (
@@ -115,10 +121,10 @@ function LibraryHeader({
       <AppColorSchemeControl />
       {isImporting ? <ImportRibbonFeedback /> : null}
       {showImportAction ? (
-        <LibraryAction
-          disabled={isImporting}
-          label={isImporting ? 'Import en cours…' : 'Importer un ouvrage'}
-          onPress={onImportPress}
+        <ImportActions
+          isImporting={isImporting}
+          onFileImportPress={onFileImportPress}
+          onImageDirectoryImportPress={onImageDirectoryImportPress}
         />
       ) : null}
     </View>
@@ -139,14 +145,16 @@ function ImportRibbonFeedback() {
 interface LibraryStatusProps {
   readonly status: LibraryScreenState['status'];
   readonly isImporting: boolean;
-  readonly onImportPress: () => void;
+  readonly onFileImportPress: () => void;
+  readonly onImageDirectoryImportPress: () => void;
   readonly onRetryPress: () => void;
 }
 
 function LibraryStatus({
   status,
   isImporting,
-  onImportPress,
+  onFileImportPress,
+  onImageDirectoryImportPress,
   onRetryPress,
 }: LibraryStatusProps) {
   const theme = useAppTheme();
@@ -187,12 +195,41 @@ function LibraryStatus({
         Votre prochaine lecture commence ici.
       </AppText>
       <AppText style={styles.statusCopy} tone="muted">
-        Importez un fichier EPUB ou PDF pour composer votre bibliothèque hors ligne.
+        Importez un fichier EPUB, PDF ou un dossier d’images pour composer votre
+        bibliothèque hors ligne.
       </AppText>
+      <ImportActions
+        isImporting={isImporting}
+        onFileImportPress={onFileImportPress}
+        onImageDirectoryImportPress={onImageDirectoryImportPress}
+      />
+    </View>
+  );
+}
+
+interface ImportActionsProps {
+  readonly isImporting: boolean;
+  readonly onFileImportPress: () => void;
+  readonly onImageDirectoryImportPress: () => void;
+}
+
+function ImportActions({
+  isImporting,
+  onFileImportPress,
+  onImageDirectoryImportPress,
+}: ImportActionsProps) {
+  return (
+    <View style={styles.importActions}>
       <LibraryAction
         disabled={isImporting}
-        label={isImporting ? 'Import en cours…' : 'Importer un ouvrage'}
-        onPress={onImportPress}
+        label={isImporting ? 'Import en cours…' : 'Importer un fichier'}
+        onPress={onFileImportPress}
+      />
+      <LibraryAction
+        disabled={isImporting}
+        label="Importer un dossier d’images"
+        onPress={onImageDirectoryImportPress}
+        variant="secondary"
       />
     </View>
   );
@@ -202,10 +239,17 @@ interface LibraryActionProps {
   readonly disabled?: boolean;
   readonly label: string;
   readonly onPress: () => void;
+  readonly variant?: 'primary' | 'secondary';
 }
 
-function LibraryAction({ disabled = false, label, onPress }: LibraryActionProps) {
+function LibraryAction({
+  disabled = false,
+  label,
+  onPress,
+  variant = 'primary',
+}: LibraryActionProps) {
   const theme = useAppTheme();
+  const primary = variant === 'primary';
 
   return (
     <Pressable
@@ -215,11 +259,17 @@ function LibraryAction({ disabled = false, label, onPress }: LibraryActionProps)
       onPress={onPress}
       style={({ pressed }) => [
         styles.action,
-        { backgroundColor: theme.text },
+        {
+          backgroundColor: primary ? theme.text : 'transparent',
+          borderColor: theme.text,
+        },
+        !primary && styles.secondaryAction,
         pressed && styles.actionPressed,
         disabled && styles.actionDisabled,
       ]}>
-      <AppText style={{ color: theme.background }} variant="button">
+      <AppText
+        style={{ color: primary ? theme.background : theme.text }}
+        variant="button">
         {label}
       </AppText>
     </Pressable>
@@ -259,6 +309,10 @@ const styles = StyleSheet.create({
     width: designSystemTokens.components.ribbon.width,
     height: designSystemTokens.components.ribbon.maxHeight,
   },
+  importActions: {
+    alignItems: 'flex-start',
+    gap: designSystemTokens.spacing[2],
+  },
   statusPanel: {
     minHeight: designSystemTokens.layout.libraryGrid.emptyStateMinHeight,
     alignItems: 'center',
@@ -291,6 +345,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: designSystemTokens.radii.sm,
+  },
+  secondaryAction: {
+    borderWidth: designSystemTokens.components.libraryImportAction.borderWidth,
   },
   actionPressed: {
     opacity: designSystemTokens.interaction.pressedOpacity,
