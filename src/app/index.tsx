@@ -24,9 +24,10 @@ import {
 import {
   defaultReaderFontSize,
   type Book,
+  type BookFormat,
   type EpubReaderPosition,
-  type PdfReaderPosition,
   type ReaderFontSize,
+  type ReaderPositionFor,
 } from '@/domain';
 import {
   clearEpubRendererCache,
@@ -34,6 +35,7 @@ import {
   ExpoCbzArchiveExtractor,
   ExpoDirectoryImportSourcePicker,
   ExpoFileImportSourcePicker,
+  ExpoImageSetPageProvider,
   ExpoImportDirectoryReader,
   ExpoImportFileReader,
   ExpoPdfFirstPageRenderer,
@@ -48,6 +50,7 @@ import {
 import { ImageImportTitleDialog } from '@/presentation/importing/image-directory-title-dialog';
 import { getImportErrorAlert } from '@/presentation/importing/import-error-alert';
 import EpubReaderScreen from '@/presentation/reading/epub/epub-reader-screen';
+import ImageSetReaderScreen from '@/presentation/reading/images/image-set-reader-screen';
 import PdfReaderScreen from '@/presentation/reading/pdf/pdf-reader-screen';
 import LibraryScreen, {
   type LibraryScreenState,
@@ -69,6 +72,7 @@ const importSourcePicker = new ExpoFileImportSourcePicker();
 const importDirectoryPicker = new ExpoDirectoryImportSourcePicker();
 const importDirectoryReader = new ExpoImportDirectoryReader();
 const cbzArchiveExtractor = new ExpoCbzArchiveExtractor();
+const imageSetPageProvider = new ExpoImageSetPageProvider();
 const importFileReader = new ExpoImportFileReader();
 const importFormatDetector = createImportFormatDetector({ files: importFileReader });
 const epubMetadataExtractor = new EpubMetadataExtractor(importFileReader);
@@ -101,15 +105,18 @@ interface EpubReadingSession {
   readonly storage?: LocalStorage;
 }
 
-interface PdfReadingSession {
-  readonly kind: 'pdf';
-  readonly book: Book<'pdf'>;
-  readonly initialPosition?: PdfReaderPosition;
+interface PagedReadingSession<F extends 'pdf' | 'images'> {
+  readonly kind: F;
+  readonly book: Book<F>;
+  readonly initialPosition?: ReaderPositionFor<F>;
   readonly progress?: ReadingProgressService;
   readonly storage?: LocalStorage;
 }
 
-type ReadingSession = EpubReadingSession | PdfReadingSession;
+type ReadingSession =
+  | EpubReadingSession
+  | PagedReadingSession<'pdf'>
+  | PagedReadingSession<'images'>;
 
 type ReadingSessionWarning =
   | 'storage-unavailable'
@@ -279,7 +286,7 @@ export default function LibraryRoute() {
     [],
   );
 
-  function persistReadingProgress<F extends 'epub' | 'pdf'>(
+  function persistReadingProgress<F extends BookFormat>(
     session: {
       readonly book: Book<F>;
       readonly progress?: ReadingProgressService;
@@ -379,6 +386,16 @@ export default function LibraryRoute() {
               persistReadingProgress(readingSession, progress)
             }
           />
+        ) : readingSession?.kind === 'images' ? (
+          <ImageSetReaderScreen
+            book={readingSession.book}
+            initialPosition={readingSession.initialPosition}
+            onClose={closeReader}
+            onProgressChange={(progress) =>
+              persistReadingProgress(readingSession, progress)
+            }
+            pageProvider={imageSetPageProvider}
+          />
         ) : null}
       </Modal>
     </>
@@ -394,7 +411,10 @@ function prepareSupportedReadingSession(
   if (isEpubBook(book)) {
     return prepareEpubReadingSession(book);
   }
-  return isPdfBook(book) ? preparePdfReadingSession(book) : undefined;
+  if (isPdfBook(book)) {
+    return preparePagedReadingSession(book);
+  }
+  return isImageBook(book) ? preparePagedReadingSession(book) : undefined;
 }
 
 function isEpubBook(book: Book): book is Book<'epub'> {
@@ -403,6 +423,10 @@ function isEpubBook(book: Book): book is Book<'epub'> {
 
 function isPdfBook(book: Book): book is Book<'pdf'> {
   return book.format === 'pdf';
+}
+
+function isImageBook(book: Book): book is Book<'images'> {
+  return book.format === 'images';
 }
 
 async function prepareEpubReadingSession(
@@ -461,10 +485,10 @@ async function prepareEpubReadingSession(
   }
 }
 
-async function preparePdfReadingSession(
-  book: Book<'pdf'>,
+async function preparePagedReadingSession<F extends 'pdf' | 'images'>(
+  book: Book<F>,
 ): Promise<{
-  readonly session: PdfReadingSession;
+  readonly session: PagedReadingSession<F>;
   readonly warning?: ReadingSessionWarning;
 }> {
   let storage: LocalStorage | undefined;
@@ -472,7 +496,7 @@ async function preparePdfReadingSession(
     const initialized = await initializeLocalStorage();
     if (!initialized.ok) {
       return {
-        session: { kind: 'pdf', book },
+        session: { kind: book.format, book },
         warning: 'storage-unavailable',
       };
     }
@@ -485,7 +509,7 @@ async function preparePdfReadingSession(
     const loaded = await progress.load(book);
     return {
       session: {
-        kind: 'pdf',
+        kind: book.format,
         book,
         progress,
         storage,
@@ -500,7 +524,7 @@ async function preparePdfReadingSession(
       await closeQuietly(storage);
     }
     return {
-      session: { kind: 'pdf', book },
+      session: { kind: book.format, book },
       warning: 'storage-unavailable',
     };
   }

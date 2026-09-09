@@ -117,6 +117,18 @@ export {
   type PdfRenditionLocation,
   type PdfRenditionTableOfContentsEntry,
 } from './reader/pdf-reader';
+export {
+  createImageSetReader,
+  imageSetReaderCapabilities,
+  type ImageSetRendition,
+  type ImageSetRenditionError,
+  type ImageSetRenditionLocation,
+} from './reader/image-set-reader';
+export type {
+  ImageSetPage,
+  ImageSetPageProvider,
+  ImageSetPageProviderError,
+} from './reader/image-set-page-provider';
 export type {
   PdfPageThumbnail,
   PdfPageThumbnailError,
