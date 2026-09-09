@@ -15,7 +15,7 @@ import {
   type CbzStreamExtractionError,
 } from './cbz-stream-extractor-core';
 
-const READ_CHUNK_BYTES = 64 * 1024;
+const READ_CHUNK_BYTES = 1024 * 1024;
 const EXTRACTION_ROOT_NAME = 'cbz-extraction';
 const STORAGE_ROOT_NAME = 'reebbon';
 
@@ -47,11 +47,17 @@ export class ExpoCbzArchiveExtractor implements CbzArchiveExtractor {
       return err({ kind: 'permission-or-access-failure' });
     }
 
-    let extracted: ReturnType<typeof extractCbzChunks>;
+    let extracted: Awaited<ReturnType<typeof extractCbzChunks>>;
     try {
-      extracted = extractCbzChunks(
+      extracted = await extractCbzChunks(
         readFileChunks(sourceFile),
         new ExpoCbzExtractionTarget(workspace),
+        {
+          scheduler: {
+            yieldEveryBytes: READ_CHUNK_BYTES,
+            yieldControl: yieldToEventLoop,
+          },
+        },
       );
     } catch {
       return err({ kind: 'filesystem-failure', operation: 'extract' });
@@ -124,6 +130,10 @@ function* readFileChunks(file: File): Iterable<Uint8Array> {
   } finally {
     handle?.close();
   }
+}
+
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function mapExtractionError(

@@ -27,6 +27,16 @@ export interface CbzExtractionTarget {
   createFile(relativePath: string): CbzExtractionFileWriter;
 }
 
+export interface CbzExtractionScheduler {
+  readonly yieldEveryBytes: number;
+  readonly yieldControl: () => Promise<void>;
+}
+
+export interface CbzExtractionOptions {
+  readonly limits?: CbzExtractionLimits;
+  readonly scheduler?: CbzExtractionScheduler;
+}
+
 export type CbzStreamExtractionError =
   | { readonly kind: 'invalid-archive' }
   | { readonly kind: 'source-read-failure' }
@@ -37,11 +47,12 @@ export interface CbzStreamExtractionResult {
   readonly totalBytes: number;
 }
 
-export function extractCbzChunks(
-  chunks: Iterable<Uint8Array>,
+export async function extractCbzChunks(
+  chunks: Iterable<Uint8Array> | AsyncIterable<Uint8Array>,
   target: CbzExtractionTarget,
-  limits: CbzExtractionLimits = DEFAULT_CHUNK_LIMITS,
-): Result<CbzStreamExtractionResult, CbzStreamExtractionError> {
+  options: CbzExtractionOptions = {},
+): Promise<Result<CbzStreamExtractionResult, CbzStreamExtractionError>> {
+  const limits = options.limits ?? DEFAULT_CHUNK_LIMITS;
   const openWriters = new Set<CbzExtractionFileWriter>();
   const paths = new Set<string>();
   let entryCount = 0;
@@ -153,7 +164,12 @@ export function extractCbzChunks(
   });
   unzip.register(UnzipInflate);
 
-  const pushed = pushArchiveChunks(unzip, chunks, () => failure);
+  const pushed = await pushArchiveChunks(
+    unzip,
+    chunks,
+    () => failure,
+    options.scheduler,
+  );
   if (!pushed.ok) {
     fail(pushed.error);
   } else if (!hasValidCentralDirectory(pushed.value, entryCount)) {
@@ -236,57 +252,93 @@ function closeOpenWriters(
   }
 }
 
-function pushArchiveChunks(
+async function pushArchiveChunks(
   unzip: Unzip,
-  chunks: Iterable<Uint8Array>,
+  chunks: Iterable<Uint8Array> | AsyncIterable<Uint8Array>,
   getFailure: () => CbzStreamExtractionError | undefined,
-): Result<ArchiveTail, CbzStreamExtractionError> {
+  scheduler?: CbzExtractionScheduler,
+): Promise<Result<ArchiveTail, CbzStreamExtractionError>> {
   let previous: Uint8Array | undefined;
   let archiveBytes = 0;
-  let tail: Uint8Array = new Uint8Array();
-  let iterator: Iterator<Uint8Array>;
+  let bytesSinceYield = 0;
+  const tail = new ArchiveTailBuffer();
+  let iterator: Iterator<Uint8Array> | AsyncIterator<Uint8Array>;
   try {
-    iterator = chunks[Symbol.iterator]();
+    iterator = getChunkIterator(chunks);
   } catch {
     return err({ kind: 'source-read-failure' });
   }
 
+  let iteratorFinished = false;
+  let result:
+    | Result<ArchiveTail, CbzStreamExtractionError>
+    | undefined;
   while (true) {
     let next: IteratorResult<Uint8Array>;
     try {
-      next = iterator.next();
+      next = await iterator.next();
     } catch {
-      return err({ kind: 'source-read-failure' });
+      result = err({ kind: 'source-read-failure' });
+      break;
     }
 
     if (next.done) {
+      iteratorFinished = true;
       try {
         unzip.push(previous ?? new Uint8Array(), true);
       } catch {
-        return err({ kind: 'invalid-archive' });
+        result = err({ kind: 'invalid-archive' });
+        break;
       }
-      return getFailure() === undefined
-        ? ok({ archiveBytes, bytes: tail })
+      result = getFailure() === undefined
+        ? ok({ archiveBytes, bytes: tail.toUint8Array() })
         : err(getFailure() ?? { kind: 'invalid-archive' });
+      break;
     }
     if (!(next.value instanceof Uint8Array)) {
-      return err({ kind: 'source-read-failure' });
+      result = err({ kind: 'source-read-failure' });
+      break;
     }
     archiveBytes += next.value.byteLength;
-    tail = appendArchiveTail(tail, next.value);
+    tail.append(next.value);
 
     if (previous !== undefined) {
       try {
         unzip.push(previous, false);
       } catch {
-        return err({ kind: 'invalid-archive' });
+        result = err({ kind: 'invalid-archive' });
+        break;
       }
       if (getFailure() !== undefined) {
-        return err(getFailure() ?? { kind: 'invalid-archive' });
+        result = err(getFailure() ?? { kind: 'invalid-archive' });
+        break;
+      }
+      bytesSinceYield += previous.byteLength;
+      if (
+        scheduler !== undefined &&
+        scheduler.yieldEveryBytes > 0 &&
+        bytesSinceYield >= scheduler.yieldEveryBytes
+      ) {
+        bytesSinceYield = 0;
+        try {
+          await scheduler.yieldControl();
+        } catch {
+          result = err({ kind: 'source-read-failure' });
+          break;
+        }
       }
     }
     previous = next.value;
   }
+
+  if (!iteratorFinished) {
+    try {
+      await iterator.return?.();
+    } catch {
+      result ??= err({ kind: 'source-read-failure' });
+    }
+  }
+  return result ?? err({ kind: 'source-read-failure' });
 }
 
 interface ArchiveTail {
@@ -294,22 +346,52 @@ interface ArchiveTail {
   readonly bytes: Uint8Array;
 }
 
-function appendArchiveTail(
-  current: Uint8Array,
-  chunk: Uint8Array,
-): Uint8Array {
-  if (chunk.byteLength >= ZIP_END_RECORD_MAX_BYTES) {
-    return chunk.slice(chunk.byteLength - ZIP_END_RECORD_MAX_BYTES);
+class ArchiveTailBuffer {
+  private readonly bytes = new Uint8Array(ZIP_END_RECORD_MAX_BYTES);
+  private length = 0;
+  private writeOffset = 0;
+
+  public append(chunk: Uint8Array): void {
+    const retained =
+      chunk.byteLength >= ZIP_END_RECORD_MAX_BYTES
+        ? chunk.subarray(chunk.byteLength - ZIP_END_RECORD_MAX_BYTES)
+        : chunk;
+    const firstLength = Math.min(
+      retained.byteLength,
+      ZIP_END_RECORD_MAX_BYTES - this.writeOffset,
+    );
+    this.bytes.set(retained.subarray(0, firstLength), this.writeOffset);
+    if (firstLength < retained.byteLength) {
+      this.bytes.set(retained.subarray(firstLength), 0);
+    }
+    this.writeOffset =
+      (this.writeOffset + retained.byteLength) % ZIP_END_RECORD_MAX_BYTES;
+    this.length = Math.min(
+      ZIP_END_RECORD_MAX_BYTES,
+      this.length + retained.byteLength,
+    );
   }
 
-  const retainedBytes = Math.min(
-    current.byteLength,
-    ZIP_END_RECORD_MAX_BYTES - chunk.byteLength,
-  );
-  const combined = new Uint8Array(retainedBytes + chunk.byteLength);
-  combined.set(current.subarray(current.byteLength - retainedBytes));
-  combined.set(chunk, retainedBytes);
-  return combined;
+  public toUint8Array(): Uint8Array {
+    if (this.length < ZIP_END_RECORD_MAX_BYTES) {
+      return this.bytes.slice(0, this.length);
+    }
+
+    const ordered = new Uint8Array(ZIP_END_RECORD_MAX_BYTES);
+    const first = this.bytes.subarray(this.writeOffset);
+    ordered.set(first);
+    ordered.set(this.bytes.subarray(0, this.writeOffset), first.byteLength);
+    return ordered;
+  }
+}
+
+function getChunkIterator(
+  chunks: Iterable<Uint8Array> | AsyncIterable<Uint8Array>,
+): Iterator<Uint8Array> | AsyncIterator<Uint8Array> {
+  if (Symbol.asyncIterator in chunks) {
+    return chunks[Symbol.asyncIterator]();
+  }
+  return chunks[Symbol.iterator]();
 }
 
 function hasValidCentralDirectory(
