@@ -195,8 +195,8 @@ function LibraryStatus({
         Votre prochaine lecture commence ici.
       </AppText>
       <AppText style={styles.statusCopy} tone="muted">
-        Importez un fichier EPUB, PDF ou un dossier d’images pour composer votre
-        bibliothèque hors ligne.
+        Importez un fichier EPUB, PDF, CBZ ou un dossier d’images pour composer
+        votre bibliothèque hors ligne.
       </AppText>
       <ImportActions
         isImporting={isImporting}

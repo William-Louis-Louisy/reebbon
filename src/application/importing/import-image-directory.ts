@@ -9,7 +9,11 @@ import type { ImportFormatDetector } from './import-format-detector';
 import type {
   DirectoryImportSource,
   ImportError,
+  ImportFormat,
+  ImportResult,
+  ImportSourceFor,
   Importer,
+  ReaderFormatForImport,
 } from './importer';
 import {
   callImportStorage,
@@ -21,6 +25,7 @@ const IMAGE_SIGNATURE_BYTE_LENGTH = 8;
 const FALLBACK_IMAGE_BOOK_TITLE = 'Ouvrage images';
 
 type ImageMediaType = 'image/jpeg' | 'image/png';
+type ImageImportFormat = Extract<ImportFormat, 'image-directory' | 'cbz'>;
 
 interface ImagePageSource {
   readonly uri: string;
@@ -42,15 +47,42 @@ export interface ImageDirectoryImporterDependencies {
   readonly now: () => Date;
 }
 
+export interface ImageDirectoryImportContext<F extends ImageImportFormat> {
+  readonly format: F;
+  readonly source: ImportSourceFor<F>;
+  readonly afterStaging?: () => Promise<Result<void, ImportError>>;
+}
+
+export interface ImageDirectoryImportPipeline {
+  importDirectory<F extends ImageImportFormat>(
+    source: DirectoryImportSource,
+    context: ImageDirectoryImportContext<F>,
+  ): Promise<Result<ImportResult<F>, ImportError>>;
+}
+
 export function createImageDirectoryImporter(
   dependencies: ImageDirectoryImporterDependencies,
 ): Importer<'image-directory'> {
+  const pipeline = createImageDirectoryImportPipeline(dependencies);
   return {
     format: 'image-directory',
-    async importBook(source) {
+    importBook(source) {
+      return pipeline.importDirectory(source, {
+        format: 'image-directory',
+        source,
+      });
+    },
+  };
+}
+
+export function createImageDirectoryImportPipeline(
+  dependencies: ImageDirectoryImporterDependencies,
+): ImageDirectoryImportPipeline {
+  return {
+    async importDirectory(source, context) {
       const detected = await detectDirectory(dependencies.detector, source);
       if (!detected.ok) {
-        return err(detected.error);
+        return err(errorForImageContext(detected.error, context));
       }
       if (detected.value !== 'image-directory') {
         return err({ kind: 'unsupported-format', detectedFormat: detected.value });
@@ -58,15 +90,19 @@ export function createImageDirectoryImporter(
 
       const listed = await listDirectory(dependencies.directories, source);
       if (!listed.ok) {
-        return err({ kind: 'permission-or-access-failure', source });
+        return err({ kind: 'permission-or-access-failure', source: context.source });
       }
 
       const pages = selectImagePages(listed.value);
       if (pages.length === 0) {
-        return err({ kind: 'corrupted-source', format: 'image-directory' });
+        return err({ kind: 'corrupted-source', format: context.format });
       }
 
-      const validated = await validateImagePages(dependencies.files, pages, source);
+      const validated = await validateImagePages(
+        dependencies.files,
+        pages,
+        context,
+      );
       if (!validated.ok) {
         return err(validated.error);
       }
@@ -76,8 +112,8 @@ export function createImageDirectoryImporter(
         normalizeBookMetadataText(source.name) ??
         FALLBACK_IMAGE_BOOK_TITLE;
 
-      return executeImportTransaction<'image-directory'>(
-        source,
+      return executeImportTransaction(
+        context.source,
         dependencies,
         async (importId) => {
           const stagedPages: StagedImagePage[] = [];
@@ -93,14 +129,23 @@ export function createImageDirectoryImporter(
               'stage-file',
             );
             if (!staged.ok) {
-              return err(storageErrorForImport(source, staged.error, 'copy'));
+              return err(
+                storageErrorForImport(context.source, staged.error, 'copy'),
+              );
             }
             stagedPages.push({ ...page, storedName });
           }
 
           const coverName = stagedPages[0]?.storedName;
           if (coverName === undefined) {
-            return err({ kind: 'corrupted-source', format: 'image-directory' });
+            return err({ kind: 'corrupted-source', format: context.format });
+          }
+
+          if (context.afterStaging !== undefined) {
+            const finalized = await callAfterStaging(context.afterStaging);
+            if (!finalized.ok) {
+              return err(finalized.error);
+            }
           }
 
           return ok({
@@ -108,15 +153,16 @@ export function createImageDirectoryImporter(
               bookId: string,
               contentUri: string,
               createdAt: Date,
-            ): Book<'images'> => ({
-              id: bookId,
-              title,
-              format: 'images',
-              fileUri: contentUri,
-              coverUri: joinUri(contentUri, coverName),
-              totalPages: stagedPages.length,
-              createdAt,
-            }),
+            ): Book<ReaderFormatForImport<typeof context.format>> =>
+              ({
+                id: bookId,
+                title,
+                format: 'images',
+                fileUri: contentUri,
+                coverUri: joinUri(contentUri, coverName),
+                totalPages: stagedPages.length,
+                createdAt,
+              }) as Book<ReaderFormatForImport<typeof context.format>>,
           });
         },
       );
@@ -168,24 +214,48 @@ function selectImagePages(entries: readonly ImportDirectoryEntry[]): ImagePageSo
 async function validateImagePages(
   files: Pick<ImportFileReader, 'readPrefix'>,
   pages: readonly ImagePageSource[],
-  source: DirectoryImportSource,
+  context: ImageDirectoryImportContext<ImageImportFormat>,
 ): Promise<Result<readonly ImagePageSource[], ImportError>> {
   for (const page of pages) {
     let prefix: Awaited<ReturnType<ImportFileReader['readPrefix']>>;
     try {
       prefix = await files.readPrefix(page.uri, IMAGE_SIGNATURE_BYTE_LENGTH);
     } catch {
-      return err({ kind: 'permission-or-access-failure', source });
+      return err({ kind: 'permission-or-access-failure', source: context.source });
     }
     if (!prefix.ok) {
-      return err({ kind: 'permission-or-access-failure', source });
+      return err({ kind: 'permission-or-access-failure', source: context.source });
     }
     if (!imageSignatureMatches(page.mediaType, prefix.value)) {
-      return err({ kind: 'corrupted-source', format: 'image-directory' });
+      return err({ kind: 'corrupted-source', format: context.format });
     }
   }
 
   return ok(pages);
+}
+
+async function callAfterStaging(
+  afterStaging: () => Promise<Result<void, ImportError>>,
+): Promise<Result<void, ImportError>> {
+  try {
+    return await afterStaging();
+  } catch {
+    return err({ kind: 'filesystem-failure', operation: 'cleanup' });
+  }
+}
+
+function errorForImageContext<F extends ImageImportFormat>(
+  error: ImportError,
+  context: ImageDirectoryImportContext<F>,
+): ImportError {
+  switch (error.kind) {
+    case 'corrupted-source':
+      return { kind: 'corrupted-source', format: context.format };
+    case 'permission-or-access-failure':
+      return { kind: 'permission-or-access-failure', source: context.source };
+    default:
+      return error;
+  }
 }
 
 async function detectDirectory(

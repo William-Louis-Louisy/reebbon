@@ -30,6 +30,8 @@ const errors: readonly ImportError[] = [
   { kind: 'persistence-failure', operation: 'rollback' },
   { kind: 'corrupted-source', format: 'image-directory' },
   { kind: 'permission-or-access-failure', source: directorySource },
+  { kind: 'corrupted-source', format: 'cbz' },
+  { kind: 'filesystem-failure', operation: 'extract' },
 ];
 
 test('every typed import error has an explicit user-facing alert', () => {
@@ -71,4 +73,14 @@ test('image-directory failures identify the folder instead of a file', () => {
   assert.match(corrupted.message, /JPEG\/PNG/i);
   assert.match(inaccessible.title, /dossier inaccessible/i);
   assert.match(inaccessible.message, /dossier sélectionné/i);
+});
+
+test('CBZ corruption and extraction failures identify the archive', () => {
+  const corrupted = getImportErrorAlert(errors[12]);
+  const extraction = getImportErrorAlert(errors[13]);
+
+  assert.match(corrupted.message, /CBZ/);
+  assert.match(extraction.title, /extraction impossible/i);
+  assert.match(extraction.message, /archive/i);
+  assert.match(getImportErrorAlert(errors[0]).message, /CBZ/);
 });
