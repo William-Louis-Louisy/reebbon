@@ -11,6 +11,11 @@ const source = {
   uri: 'content://picker/book.epub',
   name: 'book.epub',
 } as const;
+const directorySource = {
+  kind: 'directory',
+  uri: 'content://picker/album',
+  name: 'album',
+} as const;
 
 const errors: readonly ImportError[] = [
   { kind: 'unsupported-format', detectedFormat: 'mobi' },
@@ -23,6 +28,8 @@ const errors: readonly ImportError[] = [
   { kind: 'metadata-extraction-failure', format: 'pdf' },
   { kind: 'persistence-failure', operation: 'save' },
   { kind: 'persistence-failure', operation: 'rollback' },
+  { kind: 'corrupted-source', format: 'image-directory' },
+  { kind: 'permission-or-access-failure', source: directorySource },
 ];
 
 test('every typed import error has an explicit user-facing alert', () => {
@@ -54,4 +61,14 @@ test('PDF failures identify the selected format', () => {
 test('cleanup and rollback failures do not hide an incomplete compensation', () => {
   assert.match(getImportErrorAlert(errors[5]).title, /nettoyage incomplet/i);
   assert.match(getImportErrorAlert(errors[9]).message, /annulation/i);
+});
+
+test('image-directory failures identify the folder instead of a file', () => {
+  const corrupted = getImportErrorAlert(errors[10]);
+  const inaccessible = getImportErrorAlert(errors[11]);
+
+  assert.match(corrupted.title, /dossier/i);
+  assert.match(corrupted.message, /JPEG\/PNG/i);
+  assert.match(inaccessible.title, /dossier inaccessible/i);
+  assert.match(inaccessible.message, /dossier sélectionné/i);
 });

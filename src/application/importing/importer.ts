@@ -13,6 +13,7 @@ export interface DirectoryImportSource {
   readonly kind: 'directory';
   readonly uri: string;
   readonly name: string;
+  readonly title?: string;
 }
 
 export type ImportSource = FileImportSource | DirectoryImportSource;

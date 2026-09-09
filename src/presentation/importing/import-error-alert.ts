@@ -10,14 +10,29 @@ export function getImportErrorAlert(error: ImportError): ImportErrorAlert {
     case 'unsupported-format':
       return {
         title: 'Format non pris en charge',
-        message: 'Ce format n’est pas pris en charge. Sélectionnez un fichier EPUB ou PDF.',
+        message:
+          'Ce format n’est pas pris en charge. Sélectionnez un fichier EPUB, PDF ou un dossier JPEG/PNG.',
       };
     case 'corrupted-source':
+      if (error.format === 'image-directory') {
+        return {
+          title: 'Dossier d’images invalide',
+          message:
+            'Ce dossier ne contient aucune image JPEG/PNG lisible ou contient une image endommagée.',
+        };
+      }
       return {
         title: 'Fichier endommagé',
         message: `Ce fichier ${formatLabel(error.format)} est endommagé ou incomplet et ne peut pas être importé.`,
       };
     case 'permission-or-access-failure':
+      if (error.source.kind === 'directory') {
+        return {
+          title: 'Dossier inaccessible',
+          message:
+            'Reebbon n’a pas pu lire le dossier sélectionné. Vérifiez son accès puis réessayez.',
+        };
+      }
       return {
         title: 'Fichier inaccessible',
         message: 'Reebbon n’a pas pu lire le fichier sélectionné. Vérifiez son accès puis réessayez.',
@@ -30,7 +45,7 @@ export function getImportErrorAlert(error: ImportError): ImportErrorAlert {
           }
         : {
             title: 'Copie impossible',
-            message: 'Le fichier n’a pas pu être copié dans le stockage local.',
+            message: 'Le contenu n’a pas pu être copié dans le stockage local.',
           };
     case 'metadata-extraction-failure':
       return {
