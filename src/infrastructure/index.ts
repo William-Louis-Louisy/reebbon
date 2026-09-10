@@ -3,6 +3,7 @@ export { SqliteApplicationPreferenceRepository } from './database/repositories/s
 export { ExpoDirectoryImportSourcePicker } from './importing/expo-directory-import-source-picker';
 export { ExpoFileImportSourcePicker } from './importing/expo-file-import-source-picker';
 export { ExpoImportDirectoryReader } from './importing/expo-import-directory-reader';
+export { ExpoImportDiagnostics } from './importing/expo-import-diagnostics';
 export { EpubMetadataExtractor } from './importing/epub-metadata-extractor';
 export { ExpoImportFileReader } from './importing/expo-import-file-reader';
 export {

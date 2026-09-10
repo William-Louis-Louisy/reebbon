@@ -1,4 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker';
+import { Platform } from 'react-native';
 
 import type {
   FileImportSourcePicker,
@@ -21,10 +22,16 @@ export class ExpoFileImportSourcePicker implements FileImportSourcePicker {
 
   public async pickFile(options: PickFileImportSourceOptions) {
     try {
-      const result = await this.pickDocument(nativeDocumentPickerOptions(options));
+      const result = await this.pickDocument(
+        nativeDocumentPickerOptions(options, documentPickerPlatform()),
+      );
       return parsePickedDocument(result);
     } catch {
       return parsePickedDocument(undefined);
     }
   }
+}
+
+function documentPickerPlatform(): 'android' | 'ios' | 'web' {
+  return Platform.OS === 'ios' || Platform.OS === 'web' ? Platform.OS : 'android';
 }

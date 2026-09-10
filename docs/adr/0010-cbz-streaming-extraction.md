@@ -4,7 +4,7 @@
 - Date : 2026-09-10
 - Issue : #23
 - Backlog : IMP-07
-- Revisions : 2026-09-09, Issue #69, robustesse et performance Android ; 2026-09-10, Issue #71, isolation du demarrage Android
+- Revisions : 2026-09-09, Issue #69, robustesse et performance Android ; 2026-09-10, Issue #71, isolation du demarrage Android ; 2026-09-10, Issue #73, extraction native Android et instrumentation memoire
 
 ## Contexte
 
@@ -52,3 +52,19 @@ La route racine importe le point d'entree `infrastructure`, dont les reexports s
 Le point d'entree d'infrastructure ne reexporte plus l'adaptateur CBZ. La composition applicative le charge a la demande, apres que l'utilisateur a confirme un import CBZ, et transforme un echec de chargement en erreur typee `filesystem-failure/extract`. Le coeur conserve une API `async`, les reprises de boucle evenementielle, les blocs de 1 Mio, le tampon circulaire et la fermeture de l'iterateur sur erreur. Son entree est restreinte a `Iterable<Uint8Array>`, seul contrat utilise en production, ce qui retire le protocole `AsyncIterable` inutile sans retablir une extraction bloquante.
 
 Metro genere les bundles Android de `main` et de son parent, et le bundle contenant la route racine compile en bytecode Hermes. Un AVD API 30 local a ete demarre, mais la construction du dev client echoue avant compilation applicative dans le plugin Gradle React Native 0.86.3 avec Gradle 9.3.1 (`plugins` et `id` non resolus dans le `settings.gradle.kts` du plugin). Faute d'APK installable, la trace fatale observee sur les appareils QA ne peut pas etre classee plus finement depuis cet environnement. La validation froid/reprise sur les deux appareils reste obligatoire avec `adb logcat`.
+
+## Revision Issue #73 - ANR picker et pression memoire Android
+
+Le logcat reel classe deux incidents independants. Le timeout `Changing to new focus window` suit le retour de `DocumentsUI`; `expo-document-picker` executait alors une copie de l'archive vers son cache directement dans `OnActivityResult`, avant de resoudre la promesse. Le second incident est un kill explicite de LMKD apres `TRIM_MEMORY_RUNNING_CRITICAL`, avec environ 414 Mio de RSS et 223 Mio de swap. Le PSS observe monte de 179 Mio a environ 540-564 Mio autour du flow. Il ne s'agit ni d'une exception JavaScript ni d'un crash natif hypothetique.
+
+Le picker Android conserve desormais l'URI `content://` accordee par le systeme (`copyToCacheDirectory: false`) et desactive aussi le retour base64. iOS garde sa copie sandbox necessaire a l'acces ulterieur. Cette decision retire du callback de retour d'activite toute copie proportionnelle a la taille du CBZ et elimine la cause deterministe de l'ANR.
+
+Le chemin `fflate` etait streaming au niveau algorithmique, mais chaque bloc compresse passait de `FileHandle.readBytes` a un `Uint8Array`, puis chaque bloc decompresse repassait de JavaScript a un `ByteArray` via `writeBytes`. La decompression et les ecritures synchrones restaient sur le thread JavaScript, et la duree de vie effective des copies de bridge dependait du GC Hermes et du runtime natif. Cette empreinte ne peut pas etre garantie suffisamment bornee sur l'appareil Android qui subit deja la pression LMKD.
+
+Android utilise donc un module Expo local charge a la demande. Une coroutine sur `Dispatchers.IO` ouvre directement l'URI du provider, parcourt `ZipInputStream` et ecrit une seule entree a la fois avec un tampon reutilise de 64 Kio. Aucun octet d'archive ou d'image decompressee ne traverse le bridge JavaScript. Une seconde lecture sequentielle de la source valide le repertoire central avec une fenetre circulaire fixe de 65 557 octets; elle ne copie pas l'archive et le premier descripteur est ferme avant sa reouverture. Les limites de nombre d'entrees, taille par entree, taille totale et chemins hostiles restent appliquees. L'absence du module dans un ancien dev client produit une erreur typee au lieu d'un fallback Android vers `fflate`. Le fallback JavaScript reste isole et disponible pour iOS et le web.
+
+Cette extraction native ne duplique aucune logique IMP-03. Le repertoire temporaire est toujours transmis a `ImageDirectoryImportPipeline`, qui reste seul responsable de la selection JPEG/PNG, du tri naturel, de la validation des signatures, de la copie sequentielle dans le staging, de la premiere page comme couverture, du commit et de la persistance. Le nettoyage compense du repertoire extrait reste pilote par `createCbzImporter`.
+
+Le tag logcat `ReebbonImportMemory` emet des snapshots JSON contenant RSS, swap, PSS total et ventilation Java/native/graphics/code aux etapes bibliotheque stable, avant picker, retour picker, copie presente ou evitee, debut/fin d'extraction, debut/fin de chaque entree ZIP, etapes IMP-03 et retour bibliotheque. Ces mesures permettent de separer les bitmaps/graphics deja residents, le runtime de developpement et l'import lui-meme lors de la QA sur le corpus reel.
+
+Le cache memoire partage d'`expo-image` est purge juste avant l'ouverture du picker, entre deux checkpoints. Les fichiers de couverture restent dans le cache disque et les vues visibles peuvent etre rechargees, mais les bitmaps non references d'une session de lecture precedente ne concurrencent plus l'import. La difference entre les deux snapshots attribue explicitement, au lieu de la supposer, la part du palier 540-560 Mio qui provient de ce cache.

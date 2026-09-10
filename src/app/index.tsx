@@ -1,6 +1,7 @@
 import { randomUUID } from 'expo-crypto';
+import { Image } from 'expo-image';
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Modal } from 'react-native';
+import { Alert, InteractionManager, Modal } from 'react-native';
 
 import {
   createCbzImporter,
@@ -37,6 +38,7 @@ import {
   ExpoFileImportSourcePicker,
   ExpoImageSetPageProvider,
   ExpoImportDirectoryReader,
+  ExpoImportDiagnostics,
   ExpoImportFileReader,
   ExpoPdfFirstPageRenderer,
   initializeLocalStorage,
@@ -69,6 +71,7 @@ const importMimeTypes = [
   'application/zip',
 ] as const;
 const importSourcePicker = new ExpoFileImportSourcePicker();
+const importDiagnostics = new ExpoImportDiagnostics();
 const importDirectoryPicker = new ExpoDirectoryImportSourcePicker();
 const importDirectoryReader = new ExpoImportDirectoryReader();
 const imageSetPageProvider = new ExpoImageSetPageProvider();
@@ -134,6 +137,8 @@ export default function LibraryRoute() {
   const isOpeningReader = useRef(false);
   const didReportProgressFailure = useRef(false);
   const didReportFontSizeFailure = useRef(false);
+  const didRecordStableLibrary = useRef(false);
+  const pendingLibraryReturn = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -149,6 +154,27 @@ export default function LibraryRoute() {
     };
   }, [reloadKey]);
 
+  useEffect(() => {
+    if (state.status !== 'ready' || isImporting) {
+      return;
+    }
+
+    const stage = pendingLibraryReturn.current
+      ? 'library-returned'
+      : didRecordStableLibrary.current
+        ? undefined
+        : 'library-stable';
+    if (stage === undefined) {
+      return;
+    }
+    pendingLibraryReturn.current = false;
+    didRecordStableLibrary.current = true;
+    const task = InteractionManager.runAfterInteractions(() => {
+      void recordImportCheckpoint(stage, { bookCount: state.books.length });
+    });
+    return () => task.cancel();
+  }, [isImporting, state]);
+
   const retry = () => {
     startTransition(() => {
       setState(loadingState);
@@ -162,6 +188,7 @@ export default function LibraryRoute() {
       return;
     }
     if (result.status === 'success') {
+      pendingLibraryReturn.current = true;
       setState({ status: 'ready', books: result.books });
       return;
     }
@@ -601,13 +628,36 @@ async function loadLibrary(): Promise<LibraryScreenState> {
 
 async function runFileImport(): Promise<ImportFlowResult> {
   try {
+    await recordImportCheckpoint('before-document-picker');
+    let imageCacheReleased = false;
+    try {
+      imageCacheReleased = await Image.clearMemoryCache();
+    } catch {
+      // Releasing an optional image cache must not prevent document selection.
+    }
+    await recordImportCheckpoint('library-image-cache-released', {
+      released: imageCacheReleased,
+    });
     const selected = await importSourcePicker.pickFile({ mimeTypes: importMimeTypes });
+    await recordImportCheckpoint('document-picker-returned', {
+      outcome: selected.ok
+        ? selected.value === null
+          ? 'cancelled'
+          : 'selected'
+        : 'failure',
+    });
     if (!selected.ok) {
       return { status: 'selection-failure', selection: 'file' };
     }
     if (selected.value === null) {
       return { status: 'cancelled' };
     }
+    await recordImportCheckpoint(
+      selected.value.uri.startsWith('file://')
+        ? 'document-picker-copy-present'
+        : 'document-picker-copy-skipped',
+      { uriScheme: uriScheme(selected.value.uri) },
+    );
 
     const detected = await importFormatDetector.detect(selected.value);
     if (!detected.ok) {
@@ -681,6 +731,7 @@ async function runImageDirectoryImport(
         files: importFileReader,
         createId: randomUUID,
         now: () => new Date(),
+        diagnostics: importDiagnostics,
       });
       const imported = await importer.importBook(source);
       if (!imported.ok) {
@@ -723,6 +774,7 @@ async function runCbzImport(source: FileImportSource): Promise<ImportFlowResult>
         files: importFileReader,
         createId: randomUUID,
         now: () => new Date(),
+        diagnostics: importDiagnostics,
       };
       const importer = createCbzImporter({
         archives: cbzArchiveExtractor,
@@ -771,6 +823,22 @@ async function closeQuietly(storage: LocalStorage): Promise<void> {
   } catch {
     // The import result is already durable; a close failure must not report a false failure.
   }
+}
+
+async function recordImportCheckpoint(
+  stage: Parameters<ExpoImportDiagnostics['checkpoint']>[0],
+  details?: Parameters<ExpoImportDiagnostics['checkpoint']>[1],
+): Promise<void> {
+  try {
+    await importDiagnostics.checkpoint(stage, details);
+  } catch {
+    // Diagnostics are best effort and cannot change the import result.
+  }
+}
+
+function uriScheme(uri: string): string {
+  const separator = uri.indexOf(':');
+  return separator > 0 ? uri.slice(0, separator).toLowerCase() : 'unknown';
 }
 
 function showImportFailure(

@@ -27,6 +27,11 @@ export type {
   ImportFileReader,
   ImportFileReadError,
 } from './importing/import-file-reader';
+export type {
+  ImportDiagnosticDetails,
+  ImportDiagnostics,
+  ImportDiagnosticStage,
+} from './importing/import-diagnostics';
 export {
   createImportFormatDetector,
   type FormatDetectionError,

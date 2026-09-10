@@ -6,10 +6,13 @@ import type { FileImportSource } from '../../application/importing/importer';
 import { err, ok, type Result } from '../../domain';
 
 export interface NativeDocumentPickerOptions {
-  readonly copyToCacheDirectory: true;
+  readonly base64: false;
+  readonly copyToCacheDirectory: boolean;
   readonly multiple: false;
   readonly type: string | string[];
 }
+
+export type DocumentPickerPlatform = 'android' | 'ios' | 'web';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -17,9 +20,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function nativeDocumentPickerOptions(
   options: PickFileImportSourceOptions,
+  platform: DocumentPickerPlatform,
 ): NativeDocumentPickerOptions {
   return {
-    copyToCacheDirectory: true,
+    base64: false,
+    copyToCacheDirectory: platform === 'ios',
     multiple: false,
     type: options.mimeTypes.length > 0 ? [...options.mimeTypes] : '*/*',
   };
