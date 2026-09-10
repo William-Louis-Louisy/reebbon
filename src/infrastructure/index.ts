@@ -4,7 +4,6 @@ export { ExpoDirectoryImportSourcePicker } from './importing/expo-directory-impo
 export { ExpoFileImportSourcePicker } from './importing/expo-file-import-source-picker';
 export { ExpoImportDirectoryReader } from './importing/expo-import-directory-reader';
 export { EpubMetadataExtractor } from './importing/epub-metadata-extractor';
-export { ExpoCbzArchiveExtractor } from './importing/expo-cbz-archive-extractor';
 export { ExpoImportFileReader } from './importing/expo-import-file-reader';
 export {
   ExpoPdfFirstPageRenderer,

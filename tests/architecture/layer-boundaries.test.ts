@@ -102,3 +102,25 @@ test('presentation does not access infrastructure adapters directly', () => {
     }
   }
 });
+
+test('the Android startup graph defers the CBZ extractor until import', () => {
+  const infrastructureEntry = readFileSync(
+    resolve(sourceRoot, 'infrastructure/index.ts'),
+    'utf8',
+  );
+  const libraryRoute = readFileSync(resolve(sourceRoot, 'app/index.tsx'), 'utf8');
+  const cbzAdapter = './importing/expo-cbz-archive-extractor';
+
+  assert.equal(
+    importSpecifiers(infrastructureEntry).includes(cbzAdapter),
+    false,
+    'the infrastructure barrel is loaded by the root layout and must not eagerly evaluate the CBZ adapter',
+  );
+  assert.equal(
+    importSpecifiers(libraryRoute).includes(
+      '@/infrastructure/importing/expo-cbz-archive-extractor',
+    ),
+    true,
+    'the CBZ adapter must remain available through an on-demand import',
+  );
+});
