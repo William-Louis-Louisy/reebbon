@@ -1,4 +1,5 @@
-import { Directory, File, Paths, type FileHandle } from 'expo-file-system';
+import { Directory, Paths } from 'expo-file-system';
+import { Platform } from 'react-native';
 
 import type {
   CbzArchiveExtractionError,
@@ -8,14 +9,10 @@ import type {
 } from '../../application';
 import { err, ok, type Result } from '../../domain';
 
-import {
-  extractCbzChunks,
-  type CbzExtractionFileWriter,
-  type CbzExtractionTarget,
-  type CbzStreamExtractionError,
-} from './cbz-stream-extractor-core';
+import type { ReebbonImportNativeModule } from '../../../modules/reebbon-import';
+import { selectCbzExtractionStrategy } from './cbz-extraction-strategy';
+import { mapNativeCbzExtractionError } from './native-cbz-extraction-error';
 
-const READ_CHUNK_BYTES = 1024 * 1024;
 const EXTRACTION_ROOT_NAME = 'cbz-extraction';
 const STORAGE_ROOT_NAME = 'reebbon';
 
@@ -42,30 +39,25 @@ export class ExpoCbzArchiveExtractor implements CbzArchiveExtractor {
       return err({ kind: 'filesystem-failure', operation: 'extract' });
     }
 
-    const sourceFile = new File(source.uri);
-    if (!sourceFile.exists) {
-      return err({ kind: 'permission-or-access-failure' });
-    }
+    const nativeModule =
+      Platform.OS === 'android' ? await loadNativeModule() : null;
+    const strategy = selectCbzExtractionStrategy(
+      Platform.OS,
+      nativeModule !== null,
+    );
 
-    let extracted: Awaited<ReturnType<typeof extractCbzChunks>>;
-    try {
-      extracted = await extractCbzChunks(
-        readFileChunks(sourceFile),
-        new ExpoCbzExtractionTarget(workspace),
-        {
-          scheduler: {
-            yieldEveryBytes: READ_CHUNK_BYTES,
-            yieldControl: yieldToEventLoop,
-          },
-        },
-      );
-    } catch {
+    if (strategy === 'unavailable') {
       return err({ kind: 'filesystem-failure', operation: 'extract' });
     }
+    if (strategy === 'native' && nativeModule !== null) {
+      return extractWithNativeModule(nativeModule, source, workspace);
+    }
 
-    return extracted.ok
-      ? ok({ uri: workspace.uri })
-      : err(mapExtractionError(extracted.error));
+    const { extractCbzWithJavaScript } = await import(
+      './expo-js-cbz-extraction'
+    );
+    const extracted = await extractCbzWithJavaScript(source, workspace);
+    return extracted.ok ? ok({ uri: workspace.uri }) : err(extracted.error);
   }
 
   public async cleanup(
@@ -87,65 +79,27 @@ export class ExpoCbzArchiveExtractor implements CbzArchiveExtractor {
   }
 }
 
-class ExpoCbzExtractionTarget implements CbzExtractionTarget {
-  public constructor(private readonly root: Directory) {}
-
-  public createDirectory(relativePath: string): void {
-    new Directory(this.root, ...relativePath.split('/')).create({
-      idempotent: true,
-      intermediates: true,
-    });
-  }
-
-  public createFile(relativePath: string): CbzExtractionFileWriter {
-    const file = new File(this.root, ...relativePath.split('/'));
-    file.create({ intermediates: true, overwrite: false });
-    return new ExpoFileWriter(file.open());
-  }
-}
-
-class ExpoFileWriter implements CbzExtractionFileWriter {
-  public constructor(private readonly handle: FileHandle) {}
-
-  public write(bytes: Uint8Array): void {
-    this.handle.writeBytes(bytes);
-  }
-
-  public close(): void {
-    this.handle.close();
-  }
-}
-
-function* readFileChunks(file: File): Iterable<Uint8Array> {
-  let handle: FileHandle | undefined;
+async function loadNativeModule(): Promise<ReebbonImportNativeModule | null> {
   try {
-    handle = file.open();
-    while (true) {
-      const chunk = handle.readBytes(READ_CHUNK_BYTES);
-      if (chunk.byteLength === 0) {
-        return;
-      }
-      yield chunk;
-    }
-  } finally {
-    handle?.close();
+    const { getReebbonImportNativeModule } = await import(
+      '../../../modules/reebbon-import'
+    );
+    return getReebbonImportNativeModule();
+  } catch {
+    return null;
   }
 }
 
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-function mapExtractionError(
-  error: CbzStreamExtractionError,
-): CbzArchiveExtractionError {
-  switch (error.kind) {
-    case 'invalid-archive':
-      return { kind: 'corrupted-archive' };
-    case 'source-read-failure':
-      return { kind: 'permission-or-access-failure' };
-    case 'write-failure':
-      return { kind: 'filesystem-failure', operation: 'extract' };
+async function extractWithNativeModule(
+  nativeModule: ReebbonImportNativeModule,
+  source: FileImportSource,
+  workspace: Directory,
+): Promise<Result<ExtractedCbzDirectory, CbzArchiveExtractionError>> {
+  try {
+    await nativeModule.extractCbz(source.uri, workspace.uri);
+    return ok({ uri: workspace.uri });
+  } catch (error: unknown) {
+    return err(mapNativeCbzExtractionError(error));
   }
 }
 

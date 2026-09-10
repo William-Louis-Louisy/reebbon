@@ -1,0 +1,15 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.bakerscript.reebbon'
+version = '1.0.0'
+
+android {
+  namespace 'expo.modules.reebbonimport'
+}
+
+dependencies {
+  testImplementation 'junit:junit:4.13.2'
+}

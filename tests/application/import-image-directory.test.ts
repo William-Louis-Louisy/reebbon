@@ -23,6 +23,8 @@ const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0]);
 const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 interface HarnessOptions {
+  readonly diagnosticStages?: string[];
+  readonly failDiagnostics?: boolean;
   readonly entries?: readonly ImportDirectoryEntry[];
   readonly failList?: boolean;
   readonly failSave?: boolean;
@@ -122,6 +124,17 @@ function createHarness(options: HarnessOptions = {}) {
       return id;
     },
     now: () => new Date('2026-09-09T10:00:00.000Z'),
+    diagnostics:
+      options.diagnosticStages === undefined
+        ? undefined
+        : {
+            checkpoint: async (stage) => {
+              if (options.failDiagnostics) {
+                throw new Error('diagnostics unavailable');
+              }
+              options.diagnosticStages?.push(stage);
+            },
+          },
   });
 
   return { calls, getSavedBook: () => savedBook, importer };
@@ -179,6 +192,27 @@ test('image-directory importer uses the directory name as its default title', as
 
   assert.equal((await harness.importer.importBook(source)).ok, true);
   assert.equal(harness.getSavedBook()?.title, 'Les aventures');
+});
+
+test('image pipeline reports bounded-memory checkpoints without changing IMP-03', async () => {
+  const stages: string[] = [];
+  const harness = createHarness({ diagnosticStages: stages });
+
+  assert.equal((await harness.importer.importBook(source)).ok, true);
+  assert.deepEqual(stages, [
+    'images-pipeline-start',
+    'images-pipeline-listed',
+    'images-pipeline-validated',
+    'images-pipeline-staged',
+    'images-pipeline-complete',
+  ]);
+});
+
+test('diagnostic failures never alter the Images import result', async () => {
+  const harness = createHarness({ diagnosticStages: [], failDiagnostics: true });
+
+  assert.equal((await harness.importer.importBook(source)).ok, true);
+  assert.equal(harness.getSavedBook()?.totalPages, 3);
 });
 
 test('empty, unreadable and corrupted directories fail before persistence', async (t) => {

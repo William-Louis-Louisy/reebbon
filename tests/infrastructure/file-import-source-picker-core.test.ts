@@ -8,14 +8,25 @@ import {
   parsePickedDocument,
 } from '../../src/infrastructure/importing/file-import-source-picker-core';
 
-test('picker options request a readable local copy restricted to EPUB', () => {
+test('Android picker returns the provider URI without copying the document', () => {
   assert.deepEqual(
-    nativeDocumentPickerOptions({ mimeTypes: ['application/epub+zip'] }),
+    nativeDocumentPickerOptions(
+      { mimeTypes: ['application/epub+zip'] },
+      'android',
+    ),
     {
-      copyToCacheDirectory: true,
+      base64: false,
+      copyToCacheDirectory: false,
       multiple: false,
       type: ['application/epub+zip'],
     },
+  );
+});
+
+test('iOS picker retains its sandbox copy for subsequent file access', () => {
+  assert.equal(
+    nativeDocumentPickerOptions({ mimeTypes: [] }, 'ios').copyToCacheDirectory,
+    true,
   );
 });
 
