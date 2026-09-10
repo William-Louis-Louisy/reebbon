@@ -48,7 +48,7 @@ export interface CbzStreamExtractionResult {
 }
 
 export async function extractCbzChunks(
-  chunks: Iterable<Uint8Array> | AsyncIterable<Uint8Array>,
+  chunks: Iterable<Uint8Array>,
   target: CbzExtractionTarget,
   options: CbzExtractionOptions = {},
 ): Promise<Result<CbzStreamExtractionResult, CbzStreamExtractionError>> {
@@ -254,7 +254,7 @@ function closeOpenWriters(
 
 async function pushArchiveChunks(
   unzip: Unzip,
-  chunks: Iterable<Uint8Array> | AsyncIterable<Uint8Array>,
+  chunks: Iterable<Uint8Array>,
   getFailure: () => CbzStreamExtractionError | undefined,
   scheduler?: CbzExtractionScheduler,
 ): Promise<Result<ArchiveTail, CbzStreamExtractionError>> {
@@ -262,9 +262,9 @@ async function pushArchiveChunks(
   let archiveBytes = 0;
   let bytesSinceYield = 0;
   const tail = new ArchiveTailBuffer();
-  let iterator: Iterator<Uint8Array> | AsyncIterator<Uint8Array>;
+  let iterator: Iterator<Uint8Array>;
   try {
-    iterator = getChunkIterator(chunks);
+    iterator = chunks[Symbol.iterator]();
   } catch {
     return err({ kind: 'source-read-failure' });
   }
@@ -276,7 +276,7 @@ async function pushArchiveChunks(
   while (true) {
     let next: IteratorResult<Uint8Array>;
     try {
-      next = await iterator.next();
+      next = iterator.next();
     } catch {
       result = err({ kind: 'source-read-failure' });
       break;
@@ -333,7 +333,7 @@ async function pushArchiveChunks(
 
   if (!iteratorFinished) {
     try {
-      await iterator.return?.();
+      iterator.return?.();
     } catch {
       result ??= err({ kind: 'source-read-failure' });
     }
@@ -383,15 +383,6 @@ class ArchiveTailBuffer {
     ordered.set(this.bytes.subarray(0, this.writeOffset), first.byteLength);
     return ordered;
   }
-}
-
-function getChunkIterator(
-  chunks: Iterable<Uint8Array> | AsyncIterable<Uint8Array>,
-): Iterator<Uint8Array> | AsyncIterator<Uint8Array> {
-  if (Symbol.asyncIterator in chunks) {
-    return chunks[Symbol.asyncIterator]();
-  }
-  return chunks[Symbol.iterator]();
 }
 
 function hasValidCentralDirectory(

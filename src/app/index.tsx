@@ -13,6 +13,7 @@ import {
   createPdfImporter,
   createReadingProgressService,
   defaultCbzTitle,
+  type CbzArchiveExtractor,
   type DirectoryImportSource,
   type EpubFontSizePreferenceService,
   type ImportError,
@@ -32,7 +33,6 @@ import {
 import {
   clearEpubRendererCache,
   EpubMetadataExtractor,
-  ExpoCbzArchiveExtractor,
   ExpoDirectoryImportSourcePicker,
   ExpoFileImportSourcePicker,
   ExpoImageSetPageProvider,
@@ -71,7 +71,6 @@ const importMimeTypes = [
 const importSourcePicker = new ExpoFileImportSourcePicker();
 const importDirectoryPicker = new ExpoDirectoryImportSourcePicker();
 const importDirectoryReader = new ExpoImportDirectoryReader();
-const cbzArchiveExtractor = new ExpoCbzArchiveExtractor();
 const imageSetPageProvider = new ExpoImageSetPageProvider();
 const importFileReader = new ExpoImportFileReader();
 const importFormatDetector = createImportFormatDetector({ files: importFileReader });
@@ -702,6 +701,14 @@ async function runImageDirectoryImport(
 
 async function runCbzImport(source: FileImportSource): Promise<ImportFlowResult> {
   try {
+    const cbzArchiveExtractor = await loadCbzArchiveExtractor();
+    if (cbzArchiveExtractor === undefined) {
+      return {
+        status: 'import-failure',
+        error: { kind: 'filesystem-failure', operation: 'extract' },
+      };
+    }
+
     const initialized = await initializeLocalStorage();
     if (!initialized.ok) {
       return { status: 'storage-failure' };
@@ -737,6 +744,19 @@ async function runCbzImport(source: FileImportSource): Promise<ImportFlowResult>
     }
   } catch {
     return { status: 'storage-failure' };
+  }
+}
+
+async function loadCbzArchiveExtractor(): Promise<
+  CbzArchiveExtractor | undefined
+> {
+  try {
+    const { ExpoCbzArchiveExtractor } = await import(
+      '@/infrastructure/importing/expo-cbz-archive-extractor'
+    );
+    return new ExpoCbzArchiveExtractor();
+  } catch {
+    return undefined;
   }
 }
 

@@ -4,7 +4,7 @@
 - Date : 2026-09-10
 - Issue : #23
 - Backlog : IMP-07
-- Revision : 2026-09-09, Issue #69, robustesse et performance Android
+- Revisions : 2026-09-09, Issue #69, robustesse et performance Android ; 2026-09-10, Issue #71, isolation du demarrage Android
 
 ## Contexte
 
@@ -44,3 +44,11 @@ Sur un corpus synthetique non compresse de 128 images de 512 Kio (archive de 67 
 Les fichiers temporaires sont toujours recopies sequentiellement par `ImageDirectoryImportPipeline`, puis supprimes avant le commit du staging commun. Ce double passage disque est le prix de la reutilisation exacte d'IMP-03; aucune validation, aucun tri, aucune creation de livre et aucune persistance Images ne sont dupliques dans l'importeur CBZ. Le rafraichissement post-import ne relit aucun binaire.
 
 Les tests automatises ne remplacent pas la QA requise sur smartphone et tablette Android avec le corpus reel. Il reste a chronometrer les memes fichiers avant/apres, observer la memoire du processus et capturer `adb logcat -b all -v threadtime` si le processus se ferme afin de classifier la cause sans inference.
+
+## Revision Issue #71 - demarrage Android
+
+La route racine importe le point d'entree `infrastructure`, dont les reexports sont evalues au demarrage. Le reexport de `ExpoCbzArchiveExtractor` introduit par IMP-07 faisait donc charger tout le chemin CBZ avant toute selection de fichier. La revision #69 a ajoute a ce chemin du code asynchrone et le protocole `Symbol.asyncIterator`, alors que la source Expo est exclusivement un generateur synchrone. Une incompatibilite ou une exception de chargement de ce sous-systeme optionnel pouvait ainsi rendre toute l'application indisponible, au lieu de rester une erreur d'import CBZ.
+
+Le point d'entree d'infrastructure ne reexporte plus l'adaptateur CBZ. La composition applicative le charge a la demande, apres que l'utilisateur a confirme un import CBZ, et transforme un echec de chargement en erreur typee `filesystem-failure/extract`. Le coeur conserve une API `async`, les reprises de boucle evenementielle, les blocs de 1 Mio, le tampon circulaire et la fermeture de l'iterateur sur erreur. Son entree est restreinte a `Iterable<Uint8Array>`, seul contrat utilise en production, ce qui retire le protocole `AsyncIterable` inutile sans retablir une extraction bloquante.
+
+Metro genere les bundles Android de `main` et de son parent, et le bundle contenant la route racine compile en bytecode Hermes. Un AVD API 30 local a ete demarre, mais la construction du dev client echoue avant compilation applicative dans le plugin Gradle React Native 0.86.3 avec Gradle 9.3.1 (`plugins` et `id` non resolus dans le `settings.gradle.kts` du plugin). Faute d'APK installable, la trace fatale observee sur les appareils QA ne peut pas etre classee plus finement depuis cet environnement. La validation froid/reprise sur les deux appareils reste obligatoire avec `adb logcat`.
