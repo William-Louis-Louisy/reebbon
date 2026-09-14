@@ -31,3 +31,14 @@ test('Android CBZ extraction stays native, off the UI thread, and buffer-bounded
   assert.match(centralDirectorySource, /ZIP_END_RECORD_MAX_BYTES = 65_535 \+ 22/);
   assert.doesNotMatch(moduleSource + extractorSource, /fflate|readBytes|writeBytes/);
 });
+
+test('the local Expo module declares publishable Android version metadata', () => {
+  const buildScript = readFileSync(
+    resolve(process.cwd(), 'modules/reebbon-import/android/build.gradle'),
+    'utf8',
+  );
+
+  assert.match(buildScript, /defaultConfig\s*\{/);
+  assert.match(buildScript, /versionCode\s+1/);
+  assert.match(buildScript, /versionName\s+['"]1\.0\.0['"]/);
+});
