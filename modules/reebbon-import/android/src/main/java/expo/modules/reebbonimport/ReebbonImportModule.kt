@@ -31,6 +31,10 @@ class ReebbonImportModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("ReebbonImport")
 
+    OnCreate {
+      Log.i(LOG_TAG, "{\"stage\":\"native-module-created\",\"moduleVersion\":2}")
+    }
+
     AsyncFunction("recordMemoryCheckpoint") Coroutine { stage: String, details: Map<String, Any?> ->
       withContext(Dispatchers.IO) {
         recordMemoryCheckpoint(stage, details)
@@ -41,6 +45,74 @@ class ReebbonImportModule : Module() {
       withContext(Dispatchers.IO) {
         extractCbz(sourceUri, destinationUri)
       }
+    }
+
+    AsyncFunction("prepareLibraryCoverThumbnail") Coroutine {
+        bookId: String,
+        sourceUri: String,
+        destinationUri: String,
+        maxWidth: Int,
+        maxHeight: Int,
+      ->
+      withContext(Dispatchers.IO) {
+        prepareLibraryCoverThumbnail(
+          bookId,
+          sourceUri,
+          destinationUri,
+          maxWidth,
+          maxHeight,
+        )
+      }
+    }
+  }
+
+  private fun prepareLibraryCoverThumbnail(
+    bookId: String,
+    sourceUri: String,
+    destinationUri: String,
+    maxWidth: Int,
+    maxHeight: Int,
+  ): Map<String, Any?> {
+    recordMemoryCheckpoint("library-cover-thumbnail-start", mapOf("bookId" to bookId))
+    return try {
+      val destination = destinationFile(destinationUri)
+      val result = LibraryCoverThumbnailer(
+        openSource = { openSource(sourceUri) },
+        destination = destination,
+        checkpoint = { stage, details ->
+          recordMemoryCheckpoint(stage, details + mapOf("bookId" to bookId))
+        },
+      ).prepare(maxWidth, maxHeight)
+      mapOf(
+        "uri" to destinationUri,
+        "width" to result.width,
+        "height" to result.height,
+        "sourceWidth" to result.sourceWidth,
+        "sourceHeight" to result.sourceHeight,
+        "generated" to result.generated,
+      ).also {
+        recordMemoryCheckpoint(
+          "library-cover-thumbnail-complete",
+          mapOf(
+            "bookId" to bookId,
+            "generated" to result.generated,
+            "thumbnailWidth" to result.width,
+            "thumbnailHeight" to result.height,
+          ),
+        )
+      }
+    } catch (error: Exception) {
+      recordMemoryCheckpoint(
+        "library-cover-thumbnail-failed",
+        mapOf("bookId" to bookId, "errorType" to error.javaClass.simpleName),
+      )
+      throw LibraryCoverThumbnailException(error)
+    } catch (error: OutOfMemoryError) {
+      recordMemoryCheckpoint(
+        "library-cover-thumbnail-failed",
+        mapOf("bookId" to bookId, "errorType" to error.javaClass.simpleName),
+      )
+      throw LibraryCoverThumbnailException(error)
     }
   }
 
@@ -142,6 +214,20 @@ class ReebbonImportModule : Module() {
     }
   }
 
+  private fun destinationFile(value: String): File {
+    return try {
+      val uri = Uri.parse(value)
+      if (uri.scheme?.lowercase() != "file" || uri.path.isNullOrBlank()) {
+        throw LibraryCoverThumbnailException()
+      }
+      File(requireNotNull(uri.path)).canonicalFile
+    } catch (error: CodedException) {
+      throw error
+    } catch (error: Exception) {
+      throw LibraryCoverThumbnailException(error)
+    }
+  }
+
   private fun recordFailure(code: String) {
     recordMemoryCheckpoint("cbz-extraction-failed", mapOf("code" to code))
   }
@@ -204,3 +290,10 @@ private class CbzPermissionOrAccessFailureException(cause: Throwable? = null) :
 
 private class CbzFilesystemFailureException(cause: Throwable? = null) :
   CodedException("ERR_CBZ_FILESYSTEM_FAILURE", "The CBZ extraction could not be written", cause)
+
+private class LibraryCoverThumbnailException(cause: Throwable? = null) :
+  CodedException(
+    "ERR_LIBRARY_COVER_THUMBNAIL",
+    "The library cover thumbnail could not be prepared",
+    cause,
+  )

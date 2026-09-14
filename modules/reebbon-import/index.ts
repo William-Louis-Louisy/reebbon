@@ -5,6 +5,15 @@ export interface NativeCbzExtractionResult {
   readonly totalBytes: number;
 }
 
+export interface NativeLibraryCoverThumbnailResult {
+  readonly uri: string;
+  readonly width: number;
+  readonly height: number;
+  readonly sourceWidth: number;
+  readonly sourceHeight: number;
+  readonly generated: boolean;
+}
+
 export interface ReebbonImportNativeModule {
   extractCbz(
     sourceUri: string,
@@ -14,6 +23,13 @@ export interface ReebbonImportNativeModule {
     stage: string,
     details: Readonly<Record<string, boolean | number | string | null>>,
   ): Promise<void>;
+  prepareLibraryCoverThumbnail(
+    bookId: string,
+    sourceUri: string,
+    destinationUri: string,
+    maxWidth: number,
+    maxHeight: number,
+  ): Promise<NativeLibraryCoverThumbnailResult>;
 }
 
 let cachedModule: ReebbonImportNativeModule | null | undefined;

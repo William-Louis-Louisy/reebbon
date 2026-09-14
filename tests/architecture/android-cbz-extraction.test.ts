@@ -42,3 +42,26 @@ test('the local Expo module declares publishable Android version metadata', () =
   assert.match(buildScript, /versionCode\s+1/);
   assert.match(buildScript, /versionName\s+['"]1\.0\.0['"]/);
 });
+
+test('Android library covers use persistent, sampled thumbnails off the UI thread', () => {
+  const moduleSource = readFileSync(
+    resolve(moduleRoot, 'ReebbonImportModule.kt'),
+    'utf8',
+  );
+  const thumbnailerSource = readFileSync(
+    resolve(moduleRoot, 'LibraryCoverThumbnailer.kt'),
+    'utf8',
+  );
+  const cardSource = readFileSync(
+    resolve(process.cwd(), 'src/presentation/components/book-card.tsx'),
+    'utf8',
+  );
+
+  assert.match(moduleSource, /AsyncFunction\("prepareLibraryCoverThumbnail"\) Coroutine/);
+  assert.match(moduleSource, /withContext\(Dispatchers\.IO\)/);
+  assert.match(thumbnailerSource, /inJustDecodeBounds = true/);
+  assert.match(thumbnailerSource, /inSampleSize = sampleSize/);
+  assert.match(thumbnailerSource, /library-cover-thumbnail-created/);
+  assert.match(cardSource, /cachePolicy="disk"/);
+  assert.match(cardSource, /decodeFormat="rgb"/);
+});

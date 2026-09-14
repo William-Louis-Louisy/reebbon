@@ -23,7 +23,12 @@ export class ExpoImportDiagnostics implements ImportDiagnostics {
     }
 
     console.info(
-      `[ReebbonImportMemory] ${JSON.stringify({ stage, details })}`,
+      `[ReebbonImportMemory] ${JSON.stringify({
+        stage,
+        details,
+        transport: 'js-fallback',
+        reason: 'native-module-unavailable',
+      })}`,
     );
   }
 }

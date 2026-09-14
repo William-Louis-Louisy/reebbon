@@ -14,6 +14,7 @@ import {
   createPdfImporter,
   createReadingProgressService,
   defaultCbzTitle,
+  prepareLibraryCovers,
   type CbzArchiveExtractor,
   type DirectoryImportSource,
   type EpubFontSizePreferenceService,
@@ -39,6 +40,7 @@ import {
   ExpoImageSetPageProvider,
   ExpoImportDirectoryReader,
   ExpoImportDiagnostics,
+  ExpoLibraryCoverThumbnailProvider,
   ExpoImportFileReader,
   ExpoPdfFirstPageRenderer,
   initializeLocalStorage,
@@ -57,6 +59,7 @@ import PdfReaderScreen from '@/presentation/reading/pdf/pdf-reader-screen';
 import LibraryScreen, {
   type LibraryScreenState,
 } from '@/presentation/screens/library/library-screen';
+import type { LibraryCoverEvent } from '@/presentation/components/book-card';
 import {
   updateLibraryBookProgress,
 } from '@/presentation/screens/library/library-progress';
@@ -72,6 +75,9 @@ const importMimeTypes = [
 ] as const;
 const importSourcePicker = new ExpoFileImportSourcePicker();
 const importDiagnostics = new ExpoImportDiagnostics();
+const libraryCoverThumbnails = new ExpoLibraryCoverThumbnailProvider();
+const mountedLibraryCovers = new Set<string>();
+const loadingLibraryCovers = new Set<string>();
 const importDirectoryPicker = new ExpoDirectoryImportSourcePicker();
 const importDirectoryReader = new ExpoImportDirectoryReader();
 const imageSetPageProvider = new ExpoImageSetPageProvider();
@@ -145,7 +151,14 @@ export default function LibraryRoute() {
 
     void loadLibrary().then((nextState) => {
       if (active) {
-        setState(nextState);
+        void recordImportCheckpoint('library-before-render', {
+          bookCount: nextState.status === 'ready' ? nextState.books.length : 0,
+          status: nextState.status,
+        }).finally(() => {
+          if (active) {
+            setState(nextState);
+          }
+        });
       }
     });
 
@@ -153,6 +166,16 @@ export default function LibraryRoute() {
       active = false;
     };
   }, [reloadKey]);
+
+  useEffect(() => {
+    mountedLibraryCovers.clear();
+    loadingLibraryCovers.clear();
+    void recordImportCheckpoint('library-route-mounted');
+    return () => {
+      mountedLibraryCovers.clear();
+      loadingLibraryCovers.clear();
+    };
+  }, []);
 
   useEffect(() => {
     if (state.status !== 'ready' || isImporting) {
@@ -170,7 +193,12 @@ export default function LibraryRoute() {
     pendingLibraryReturn.current = false;
     didRecordStableLibrary.current = true;
     const task = InteractionManager.runAfterInteractions(() => {
-      void recordImportCheckpoint(stage, { bookCount: state.books.length });
+      void recordImportCheckpoint('library-after-initial-render', {
+        bookCount: state.books.length,
+        mountedCoverCount: mountedLibraryCovers.size,
+      }).then(() =>
+        recordImportCheckpoint(stage, { bookCount: state.books.length }),
+      );
     });
     return () => task.cancel();
   }, [isImporting, state]);
@@ -363,6 +391,7 @@ export default function LibraryRoute() {
       <LibraryScreen
         isImporting={isImporting}
         onBookPress={openBook}
+        onCoverEvent={recordLibraryCoverEvent}
         onFileImportPress={importFile}
         onImageDirectoryImportPress={selectImageDirectory}
         onRetryPress={retry}
@@ -611,13 +640,18 @@ function getReadingSessionWarning(
 
 async function loadLibrary(): Promise<LibraryScreenState> {
   try {
+    await recordImportCheckpoint('library-before-db-load');
     const initialized = await initializeLocalStorage();
     if (!initialized.ok) {
+      await recordImportCheckpoint('library-after-db-load', {
+        bookCount: 0,
+        status: 'failure',
+      });
       return failureState;
     }
 
     try {
-      return await listLibrary(initialized.value);
+      return await listLibrary(initialized.value, true);
     } finally {
       await initialized.value.close();
     }
@@ -812,9 +846,25 @@ async function loadCbzArchiveExtractor(): Promise<
   }
 }
 
-async function listLibrary(storage: LocalStorage): Promise<LibraryScreenState> {
+async function listLibrary(
+  storage: LocalStorage,
+  reportDatabaseLoad = false,
+): Promise<LibraryScreenState> {
   const books = await createListLibraryBooks(storage)();
-  return books.ok ? { status: 'ready', books: books.value } : failureState;
+  if (reportDatabaseLoad) {
+    await recordImportCheckpoint('library-after-db-load', {
+      bookCount: books.ok ? books.value.length : 0,
+      status: books.ok ? 'ready' : 'failure',
+    });
+  }
+  if (!books.ok) {
+    return failureState;
+  }
+  const prepared = await prepareLibraryCovers(
+    books.value,
+    libraryCoverThumbnails,
+  );
+  return { status: 'ready', books: prepared };
 }
 
 async function closeQuietly(storage: LocalStorage): Promise<void> {
@@ -834,6 +884,39 @@ async function recordImportCheckpoint(
   } catch {
     // Diagnostics are best effort and cannot change the import result.
   }
+}
+
+function recordLibraryCoverEvent(event: LibraryCoverEvent): void {
+  switch (event.kind) {
+    case 'mounted':
+      mountedLibraryCovers.add(event.bookId);
+      break;
+    case 'load-start':
+      loadingLibraryCovers.add(event.bookId);
+      break;
+    case 'load-complete':
+    case 'load-failed':
+      loadingLibraryCovers.delete(event.bookId);
+      break;
+    case 'unmounted':
+      mountedLibraryCovers.delete(event.bookId);
+      loadingLibraryCovers.delete(event.bookId);
+      break;
+  }
+
+  const stage = `library-cover-${event.kind === 'load-failed' ? 'load-failed' : event.kind}` as const;
+  void recordImportCheckpoint(stage, {
+    bookId: event.bookId,
+    mountedCoverCount: mountedLibraryCovers.size,
+    loadingCoverCount: loadingLibraryCovers.size,
+    ...(event.kind === 'load-complete'
+      ? {
+          cacheType: event.cacheType,
+          decodedWidth: event.width,
+          decodedHeight: event.height,
+        }
+      : {}),
+  });
 }
 
 function uriScheme(uri: string): string {
