@@ -4,7 +4,7 @@
 - Date : 2026-09-10
 - Issue : #23
 - Backlog : IMP-07
-- Revisions : 2026-09-09, Issue #69, robustesse et performance Android ; 2026-09-10, Issue #71, isolation du demarrage Android ; 2026-09-10, Issue #73, extraction native Android et instrumentation memoire
+- Revisions : 2026-09-09, Issue #69, robustesse et performance Android ; 2026-09-10, Issue #71, isolation du demarrage Android ; 2026-09-10, Issue #73, extraction native Android et instrumentation memoire ; 2026-09-14, Issue #73, memoire bornee des couvertures Android
 
 ## Contexte
 
@@ -68,3 +68,15 @@ Cette extraction native ne duplique aucune logique IMP-03. Le repertoire tempora
 Le tag logcat `ReebbonImportMemory` emet des snapshots JSON contenant RSS, swap, PSS total et ventilation Java/native/graphics/code aux etapes bibliotheque stable, avant picker, retour picker, copie presente ou evitee, debut/fin d'extraction, debut/fin de chaque entree ZIP, etapes IMP-03 et retour bibliotheque. Ces mesures permettent de separer les bitmaps/graphics deja residents, le runtime de developpement et l'import lui-meme lors de la QA sur le corpus reel.
 
 Le cache memoire partage d'`expo-image` est purge juste avant l'ouverture du picker, entre deux checkpoints. Les fichiers de couverture restent dans le cache disque et les vues visibles peuvent etre rechargees, mais les bitmaps non references d'une session de lecture precedente ne concurrencent plus l'import. La difference entre les deux snapshots attribue explicitement, au lieu de la supposer, la part du palier 540-560 Mio qui provient de ce cache.
+
+## Revision Issue #73 - memoire bornee des couvertures Android
+
+La QA suivante localise la pression avant le picker : environ 581 Mio de PSS et 658 Mio de RSS, dont 363 Mio de Native Heap privee, apres une croissance d'environ 393 a 597 Mio pendant le seul affichage de la bibliotheque. Aucun retour du picker ni checkpoint CBZ n'est atteint. La purge ponctuelle du cache `expo-image` ne suffit donc pas : l'extracteur ZIP n'est pas sur le chemin qui precede le kill LMKD.
+
+La grille Android ne recoit plus directement les couvertures originales. Un port applicatif prepare leurs URI avant publication de la bibliotheque. Son adaptateur Android appelle le module Expo local sur `Dispatchers.IO`, inspecte les dimensions sans decoder les pixels, choisit un `inSampleSize`, puis produit sequentiellement une vignette JPEG persistante de 720 x 1056 pixels maximum en `RGB_565`. Une seule couverture est decodee a la fois et les bitmaps temporaires sont recyclees explicitement. La vignette appartient au meme repertoire que les ressources du livre : elle est reutilisee aux chargements suivants et supprimee avec le livre, sans nouvelle table SQLite ni seconde source de verite.
+
+`BookCard` charge cette ressource bornee avec un cache disque uniquement, un decode RGB et une cle de recyclage. La fenetre de rendu de la `FlatList` est elle aussi bornee. Si le module natif ou la creation de vignette est indisponible sur Android, la carte affiche son fallback au lieu de recharger silencieusement l'original haute resolution. Les autres plateformes conservent leur comportement existant.
+
+Cette ressource est strictement une projection de presentation. L'URI de couverture persistante du livre reste celle choisie par `ImageDirectoryImportPipeline`, et la regle produit « premiere page naturellement triee = couverture » ne change pas. Les checkpoints enregistrent desormais le chargement DB, le rendu initial, les dimensions de source, l'echantillonnage, la creation/reutilisation de vignette, le nombre de couvertures montees et les dimensions decodees par la grille.
+
+Un ancien dev client ne contenant pas le module natif journalise les checkpoints via `ReactNativeJS`. Le fallback precise desormais `native-module-unavailable`, tandis qu'un binaire a jour emet `native-module-created` avec le tag natif `ReebbonImportMemory`. La validation appareil doit verifier ce marqueur avant d'interpreter les mesures.
