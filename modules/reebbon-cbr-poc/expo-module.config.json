@@ -1,0 +1,10 @@
+{
+  "platforms": ["android", "apple"],
+  "android": {
+    "modules": ["expo.modules.reebboncbrpoc.ReebbonCbrPocModule"]
+  },
+  "apple": {
+    "podspecPath": "ReebbonCbrPoc.podspec",
+    "modules": ["ReebbonCbrPocModule"]
+  }
+}

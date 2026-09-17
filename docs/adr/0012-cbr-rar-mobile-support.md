@@ -1,202 +1,339 @@
-# ADR 0012 - NO-GO CBR/RAR pour le MVP
+# ADR 0012 - GO architectural pour CBR/RAR natif
 
 - Statut : accepte
 - Date : 2026-09-17
 - Issue : #25
 - Backlog : spike CBR/RAR du Sprint 5
-- Issue conditionnelle : #34 / IMP-08
+- Implementation produit : #34 / IMP-08
 
 ## Decision
 
-Le support CBR est **NO-GO pour le MVP**.
+Le support CBR recoit un **GO architectural** pour une implementation ulterieure
+dans #34, avec un module Expo natif Reebbon construit autour de la source
+officielle UnRAR.
 
-Aucune solution evaluee ne satisfait simultanement les garde-fous suivants :
-
-- licence et obligations de distribution identifiees pour l'App Store et le Play Store ;
-- extraction fiable des archives RAR4 et RAR5 ;
-- compatibilite demontree avec Expo SDK 57, React Native 0.86.3 et EAS Build sur Android et iOS ;
-- memoire plafonnee avant toute allocation dictee par une archive hostile ;
-- extraction sequentielle vers le disque sans copie complete dans le heap JavaScript ;
-- impact binaire mesure et acceptable sur les deux plateformes ;
-- maintenance sur un moteur amont actuel.
-
-CBR reste donc explicitement non supporte. CBZ demeure le format archive de BD/manga supporte par le MVP. L'Issue #34 / IMP-08 ne doit pas etre implementee sur la base de ce spike et peut etre classee `not planned` apres integration de cette decision.
-
-Cette decision ne conclut pas que RAR est techniquement impossible. Elle conclut qu'un GO serait injustifie sans un module natif sur mesure et une validation mobile complete qui ne sont ni disponibles ni demontres aujourd'hui.
-
-## Contexte et contraintes Reebbon
-
-Le projet utilise Expo SDK 57, React Native 0.86.3 et EAS Build. Le retour d'experience de l'import CBZ impose de ne faire traverser au bridge JavaScript ni l'archive complete ni les images decompressees. Une extraction d'archive doit s'executer hors du thread JavaScript, ecrire une seule entree a la fois dans un repertoire temporaire et imposer ses limites avant les allocations importantes.
-
-Un futur extracteur CBR ne devrait contenir aucune logique de livre Images. Comme `CbzArchiveExtractor`, il devrait produire un repertoire temporaire et le transmettre a l'unique `ImageDirectoryImportPipeline`. Ce pipeline resterait responsable de la selection JPEG/PNG, du tri naturel, de la validation, de la premiere page comme couverture, du staging, de la persistance et des compensations.
-
-La documentation Expo confirme qu'un module Expo local peut embarquer du code Kotlin/Swift dans un development build. Elle ne garantit cependant pas la portabilite d'un moteur C/C++ tiers : l'autolinking, CocoaPods/CMake, les ABI, le NDK et les builds EAS doivent encore etre valides par le module concerne.
-
-## Evaluation des solutions
-
-### 1. Source officielle UnRAR 7.23
-
-**Moteur reel.** Source C++ officielle RARLAB, archive `unrarsrc-7.2.3.tar.gz`, version interne 7.20 beta 3 correspondant a la release 7.23. Le moteur lit RAR4 et RAR5, ainsi que les evolutions RAR7.
-
-**Licence.** La licence UnRAR autorise gratuitement l'emploi de la source dans un logiciel qui manipule des archives RAR et autorise sa distribution dans un autre logiciel. Elle interdit d'utiliser la source pour recreer l'algorithme de compression RAR et exige de reproduire le paragraphe de restriction dans la licence ou la documentation et dans les commentaires de la distribution modifiee. Pour un extracteur uniquement, aucun obstacle de principe a une distribution commerciale App Store/Play Store n'a ete identifie. Cette conclusion ne remplace pas une revue juridique de publication.
-
-**Memoire.** L'API lit l'archive depuis un fichier et peut ecrire la sortie directement sur disque ; elle ne requiert donc pas de charger toute l'archive. En revanche, la fenetre de decompression reste une allocation majeure. La source stable fixe `WinSizeLimit` a 4 Gio et `UNPACK_MAX_DICT` a 64 Gio. RARLAB avertit qu'une archive peut demander jusqu'a 1 Tio et recommande aux integrateurs de la refuser ou de demander une confirmation. Le callback `UCM_LARGEDICT` de la DLL n'est appele que lorsque la limite interne est depassee : la limite par defaut de 4 Gio est deja incompatible avec un telephone. Une integration Reebbon devrait lire `RARHeaderDataEx.DictSize` et refuser une entree avant `RARProcessFile`, ou exposer dans le wrapper une limite native nettement plus basse, non contournable et testee avant allocation.
-
-**Compatibilite mobile.** RARLAB ne distribue aucun SDK/AAR/XCFramework officiel Android/iOS. Sa page d'extensions classe les ports mobiles comme contributions non supportees et avertit qu'ils peuvent contenir une source obsolete sans correctifs critiques.
-
-Une compilation croisee de la source stable avec Android NDK 27.1, cible `arm64-v8a` API 24, echoue sans modification : `ulinks.cpp` appelle `lutimes`, absent de Bionic. La substitution experimentale `-Dlutimes=utimes` permet seulement d'estimer la taille ; elle modifie la semantique des liens symboliques et n'est pas un correctif publiable.
-
-**Taille mesuree.** Avec `clang++ -Oz`, sections eliminables et symboles retires, cette compilation experimentale produit un `libunrar.so` arm64 de 358 064 octets (0,341 Mio). Ce chiffre n'inclut ni le wrapper Expo, ni les autres ABI Android, ni le code iOS, ni l'impact reel sur un AAB/IPA. Il montre qu'un moteur UnRAR cible pourrait etre compact, mais il ne constitue pas une mesure EAS sur deux plateformes.
-
-**Verdict.** Meilleur moteur fonctionnel et licence la plus directe, mais **pas de GO** : port Android requis, plafond memoire mobile absent de l'API publique, integration iOS non construite, aucun build EAS Android/iOS et aucun delta AAB/IPA valides.
-
-### 2. `react-native-unarchive` 1.1.0
-
-**Moteurs reels.** Le nom et la licence MIT du wrapper ne decrivent pas les moteurs distribues :
-
-- Android depend de `com.sorrowblue.sevenzipjbinding:7-Zip-JBinding-4Android:16.02-2.4`, donc du moteur 7-Zip/p7zip 16.02 via JNI ;
-- iOS depend d'UnrarKit `~> 2.10`, qui embarque UnRAR 5.8.1.
-
-Ces moteurs lisent RAR4/RAR5, mais ne sont ni de meme version ni de meme implementation. L'exemple du wrapper est developpe avec React Native 0.81.1, pas 0.86.3, et aucune matrice Expo SDK 57/EAS n'est fournie.
-
-**Licence.** Android herite de la LGPL 2.1+, des licences BSD et de la restriction UnRAR de 7-Zip ; iOS herite de la licence BSD du wrapper UnrarKit et de la licence UnRAR du moteur. La mention MIT du paquet React Native ne supprime aucune de ces obligations. Un chemin de conformite LGPL, en particulier pour la redistribution mobile, n'est pas documente par le wrapper.
-
-**Memoire.** Android utilise des callbacks d'extraction et iOS sait extraire vers un repertoire, donc la sortie peut etre sequentielle. Le wrapper n'expose toutefois aucun plafond de dictionnaire mobile et ne demontre pas la liberation des allocations natives sur le corpus Reebbon.
-
-**Taille mesuree.** L'AAR Android transitif fait 19 394 461 octets compresse. Il embarque quatre moteurs natifs generalistes : 15,81 Mio pour arm64, 12,45 Mio pour armeabi-v7a, 12,35 Mio pour x86 et 14,60 Mio pour x86_64. Ce cout vient du support de nombreux formats et fonctions dont Reebbon n'a pas besoin.
-
-**Verdict.** Rejete : moteurs divergents et anciens, obligations transitives insuffisamment documentees, absence de plafond memoire, impact Android disproportionne et compatibilite Expo 57/EAS non demontree.
-
-### 3. `uncompress-react-native` 1.1.3
-
-**Moteurs reels.** Android depend de Junrar 7.4.0 ; iOS depend d'UnrarKit sans version verrouillee. Junrar 7.4.0 precede le support RAR5 livre seulement dans Junrar 8.0.0. Le wrapper a ete developpe avec React Native 0.64.1, AGP 3.2.1 et `jcenter()`.
-
-**Verdict.** Rejete : Android ne couvre pas RAR5 avec la version epinglee, la chaine Gradle est obsolete, les moteurs divergent et aucune compatibilite Expo 57/RN 0.86.3/EAS n'est etablie.
-
-### 4. Junrar 8.0.0
-
-**Moteur reel.** Implementation Java sous licence UnRAR. La version 8.0.0, publiee en juillet 2026, ajoute RAR5/RAR7, les archives solides et multi-volumes. Elle expose `ArchiveOptions.maxDictionarySize`, avec allocation progressive/segmentee, et des flux entree/sortie. Elle est donc techniquement credible pour une extraction Android bornee a condition d'abaisser explicitement sa limite par defaut de 4 Gio.
-
-**Taille mesuree.** Le JAR Maven Central fait 222 189 octets (0,212 Mio) avant D8/R8, auquel s'ajoute `slf4j-api`. C'est nettement plus petit que 7-Zip-JBinding.
-
-**Verdict.** Non retenu : Java/Android uniquement, aucun equivalent iOS du meme moteur, support RAR5 tres recent sans validation sur le corpus mobile Reebbon. L'utiliser imposerait deux implementations et deux comportements de securite differents.
-
-### 5. libarchive 3.8.8
-
-**Moteur reel.** Implementation C autonome sous licence BSD. Son API est concue pour lire les archives en flux et ecrire les entrees directement sur disque. Une edition statique peut limiter les formats lies, ce qui est favorable a la taille.
-
-**RAR4/RAR5.** L'amont annonce RAR et RAR5 en lecture, mais precise explicitement « avec certaines limitations dues au statut proprietaire de RAR ». Un incident amont ouvert, #3352, montre encore une archive RAR5 valide dont les donnees sont restituees puis suivies d'une erreur fatale de fin de bloc sur la branche courante inspectee. Cette couverture n'est pas suffisante pour promettre l'import CBR general.
-
-**Mobile et taille.** Aucun AAR/XCFramework mobile officiel ni wrapper Expo maintenu n'est fourni. Une integration demanderait deux toolchains natives, un filtrage des formats, des limites de ressources propres et des builds EAS. Aucun delta AAB/IPA exact ne peut etre affirme avant ce travail.
-
-**Verdict.** Rejete : licence permissive et streaming satisfaisants, mais compatibilite RAR5 incomplete et compatibilite/impact mobile non valides.
-
-### 6. 7-Zip / 7-Zip-JBinding
-
-**Moteur reel.** 7-Zip 16.02 via JNI dans le wrapper Android examine. Le moteur RAR est derive d'UnRAR. La licence de `7z.dll` combine LGPL 2.1+, clauses BSD et restriction UnRAR ; les informations de licence doivent accompagner les redistributions binaires.
-
-**Verdict.** Rejete : moteur generaliste ancien, obligations LGPL non traitees par le wrapper, AAR de 19,4 Mo, pas de chemin iOS equivalent valide et aucune garantie de plafond memoire adapte a Reebbon.
-
-### 7. Autres options ecartees
-
-- `(lib)unarr` est LGPL-3.0 et ne supporte pas RAR5 ; il echoue donc sur deux criteres avant toute integration mobile.
-- `unrar5j` est une petite implementation Java RAR4/RAR5 sous Apache-2.0, mais ne supporte pas le mode PPMd RAR4 ni plusieurs filtres RAR4 et n'offre aucun moteur iOS.
-- `node-unrar-js` et les variantes WebAssembly utilisent en environnement navigateur un `ArrayBuffer` contenant l'archive, puis exposent les fichiers comme `Uint8Array`. Leur API fichier repose sur les API Node absentes de React Native. Le chemin mobile disponible recreerait precisement les copies archive/JS/WASM que l'architecture CBZ a supprimees.
-- UnrarKit offre une API iOS pratique et un mode par blocs, mais sa branche courante embarque encore UnRAR 5.8.1. RARLAB classe ce port parmi les contributions non supportees potentiellement privees de correctifs critiques.
-
-## Compatibilite App Store / Play Store
-
-Le spike distingue la licence du wrapper de celle du moteur effectivement lie :
-
-- UnRAR direct et Junrar autorisent un extracteur distribue dans une application, sous reserve de conserver le texte de restriction et de ne jamais fournir de compression RAR ;
-- libarchive BSD autorise la redistribution binaire avec conservation des notices ;
-- 7-Zip ajoute la LGPL et ses obligations de redistribution/reliaison aux clauses UnRAR ;
-- les licences MIT/BSD des wrappers React Native et UnrarKit ne remplacent pas les licences des moteurs embarques.
-
-La licence UnRAR n'est donc pas, a elle seule, le motif du NO-GO. Le NO-GO resulte de l'absence d'une solution unique dont la conformite complete, les builds mobiles, la memoire et la taille ont tous ete valides. Aucun GO ne doit etre deduit de la seule etiquette MIT d'un paquet npm.
-
-## Architecture interdite et architecture de reouverture
-
-Tant que cette decision est active, il ne faut pas :
-
-- ajouter `cbr` a `ImportFormat` ;
-- ajouter une detection ou un bouton CBR ;
-- introduire un moteur RAR, une dependance native ou un plugin de configuration ;
-- dupliquer la creation de livres Images ;
-- utiliser un fallback JavaScript/WASM qui charge l'archive complete.
-
-Une nouvelle Issue de spike pourra rouvrir la decision uniquement avec les preuves suivantes :
-
-1. moteur et version identiques, ou comportement explicitement aligne, sur Android et iOS ;
-2. licence et notices auditees pour les deux stores ;
-3. module Expo local minimal construit par EAS en development et release pour Android et iOS ;
-4. extraction RAR4/RAR5 reelle vers un repertoire temporaire, hors thread JS, une entree a la fois ;
-5. limite de dictionnaire native configurable et refusee avant allocation, ainsi que limites d'entrees, de taille par entree et de taille totale ;
-6. protections contre traversal, chemins absolus, liens, doublons, archives solides hostiles et bombes de decompression ;
-7. mesures appareil de PSS/RSS, temps d'import et nettoyage sur archives petites, volumineuses, solides, corrompues et chiffrees ;
-8. delta mesure de l'AAB par ABI et de l'IPA ;
-9. fermeture deterministe des handles et liberation du contexte natif sur succes, erreur et annulation ;
-10. delegation finale et exclusive a `ImageDirectoryImportPipeline`.
-
-Si ces preuves permettent plus tard un GO, l'architecture devra rester :
+Ce GO ne rend pas CBR disponible dans le produit. Le POC de #25 n'ajoute pas
+`cbr` a `ImportFormat`, ne modifie pas la detection de format et n'enregistre
+aucun importer CBR. Il demontre une architecture raisonnable et maitrisee :
 
 ```text
 ImportSource CBR
--> CbrArchiveExtractor natif borne
--> repertoire temporaire
+-> fichier local accessible au natif
+-> module Expo Reebbon CBR (Kotlin / Swift)
+-> coeur C++ commun UnRAR 7.23
+-> extraction bornee dans un nouveau repertoire temporaire
 -> ImageDirectoryImportPipeline existant
--> livre images
+-> livre Images
 ```
 
-## Mesures reproductibles du spike
+L'Issue #34 reste ouverte. Elle devra transformer le POC en implementation
+produit, ajouter le corpus d'archives et effectuer la QA mobile decrite dans cet
+ADR avant livraison.
 
-### UnRAR stable 7.23
+## Pourquoi la decision change
 
-Source officielle : `https://www.rarlab.com/rar/unrarsrc-7.2.3.tar.gz`
+Le premier passage du spike cherchait surtout un wrapper React Native existant.
+Aucun wrapper examine ne satisfaisait les contraintes de licence, version,
+memoire, taille et parite Android/iOS. Cela ne constituait pas un obstacle a CBR
+lui-meme.
 
-- SHA-256 de l'archive : `3995AF0AA32B1505A566DA053725551A1F0698DC42B2FDF7BA7D65DB0D004E33`
-- NDK : `27.1.12297006`
-- cible : `aarch64-linux-android24`
-- echec sans modification : `ulinks.cpp:39: use of undeclared identifier 'lutimes'`
-- estimation avec shim non publiable `-Dlutimes=utimes` : 358 064 octets pour `libunrar.so` arm64 optimise taille et strippe
+Le POC versionne sous `modules/reebbon-cbr-poc/` verifie l'alternative demandee :
 
-### 7-Zip-JBinding Android 16.02-2.4
+- source officielle UnRAR 7.23 vendoree, sans wrapper React Native tiers ;
+- meme liste explicite de sources C++ pour Android et iOS ;
+- compilation NDK 27.1 sur les quatre ABI Android ;
+- bridge Expo qui ne transporte que des chemins et un resultat numerique ;
+- extraction UnRAR directement de fichier vers disque ;
+- limites et controles Reebbon appliques nativement avant l'extraction d'une
+  entree, puis pendant sa decompression ;
+- sortie volontairement compatible avec la delegation au pipeline Images
+  commun, sans dupliquer IMP-03.
 
-Artefact Maven Central : `com.sorrowblue.sevenzipjbinding:7-Zip-JBinding-4Android:16.02-2.4`
+Aucun obstacle de licence, de portabilite source, de securite structurelle ou de
+taille binaire manifestement disproportionne n'a ete trouve. L'absence de poste
+macOS et d'appareil Android dans cet environnement limite la preuve d'execution,
+mais ne justifie plus un NO-GO.
 
-- SHA-256 AAR : `D2A2EE4391AF32A47D08B2438A94E06EAA5A1764398A17D089BC234945F3A0DE`
-- AAR : 19 394 461 octets
-- `arm64-v8a/lib7-Zip-JBinding.so` : 16 573 552 octets
-- `armeabi-v7a/lib7-Zip-JBinding.so` : 13 059 004 octets
-- `x86/lib7-Zip-JBinding.so` : 12 954 948 octets
-- `x86_64/lib7-Zip-JBinding.so` : 15 309 168 octets
+## Moteur retenu
 
-### Junrar 8.0.0
+### Source et version
 
-Artefact Maven Central : `com.github.junrar:junrar:8.0.0`
+Le moteur retenu est la source C++ officielle RARLAB UnRAR 7.23 :
 
-- SHA-256 JAR : `A735F8E6C4DB9396B5D08CD13671D383782D24B154684FBB2873F5DB126A1816`
-- JAR : 222 189 octets avant D8/R8
+- archive amont : `unrarsrc-7.2.3.tar.gz` ;
+- SHA-256 :
+  `3995AF0AA32B1505A566DA053725551A1F0698DC42B2FDF7BA7D65DB0D004E33` ;
+- API d'integration : `RAROpenArchiveEx`, `RARReadHeaderEx`,
+  `RARProcessFileW`, callback DLL et `RARCloseArchive` ;
+- formats lus par ce moteur : RAR4, RAR5 et evolutions RAR7 ;
+- archives solides : traitees sequentiellement par le meme handle UnRAR.
 
-Ces mesures ne sont pas des deltas d'application. Aucune dependance candidate n'a ete ajoutee a Reebbon et aucun code IMP-08 n'a ete implemente.
+Le code amont complet et sa licence sont conserves dans
+`modules/reebbon-cbr-poc/native/unrar/`. La logique Reebbon reste separee dans
+`reebbon_cbr_poc.cpp`.
+
+### Licence et distribution commerciale
+
+La licence officielle UnRAR autorise gratuitement l'utilisation de la source
+dans tout logiciel manipulant des archives RAR ainsi que sa redistribution dans
+un autre logiciel. Elle interdit d'utiliser la source pour recreer un archiveur
+compatible RAR ou l'algorithme de compression proprietaire.
+
+Elle exige egalement que le paragraphe commencant par `UnRAR source code` soit
+reproduit dans la licence ou la documentation, et dans les commentaires du
+package derive. Le POC satisfait cette obligation dans :
+
+- `native/unrar/license.txt`, copie amont complete ;
+- `modules/reebbon-cbr-poc/NOTICE.md` ;
+- le commentaire de l'en-tete public du wrapper Reebbon.
+
+Reebbon utilise uniquement la decompression. Aucune clause de la licence
+inspectee n'interdit une application commerciale distribuee sur l'App Store ou
+le Play Store. Une notice obligatoire n'est pas une incompatibilite de licence.
+Une revue juridique de publication reste recommandee, comme pour toute licence
+non standard, mais elle n'est pas un bloqueur technique du spike.
+
+## Architecture du POC
+
+### Frontiere JavaScript
+
+Le module local est decouvert par Expo Autolinking sur Android et Apple. Son API
+accepte seulement un chemin source. Le bridge cree un sous-repertoire unique
+dans son cache temporaire prive et renvoie :
+
+- chemin de ce repertoire temporaire ;
+- nombre d'entrees ;
+- nombre de fichiers ;
+- octets effectivement produits ;
+- indicateur d'archive solide.
+
+Ni l'archive ni une image decompressee ne traversent le heap JavaScript. Android
+execute le bridge avec `Dispatchers.IO`; iOS declare une file GCD dediee.
+
+### Extraction et memoire
+
+L'archive est ouverte depuis son fichier local. Chaque en-tete est lu, valide,
+puis traite avec `RARProcessFileW` vers le disque. A aucun moment le wrapper ne
+lit l'archive complete ou une image complete dans un buffer JS.
+
+Les limites POC sont natives et explicites :
+
+- dictionnaire maximum : 64 Mio ;
+- taille decompressee maximum par entree : 512 Mio ;
+- taille decompressee totale maximum : 4 Gio ;
+- nombre total d'entrees : 10 000 ;
+- longueur maximum d'un chemin : 1 024 caracteres.
+
+`RARHeaderDataEx.DictSize` est controle avant l'appel a `RARProcessFileW`, donc
+avant l'allocation de la fenetre de decompression de l'entree. Le nombre, la
+taille declaree de l'entree et le cumul des tailles declarees sont controles au
+meme endroit. Le callback `UCM_PROCESSDATA` compte en plus les octets reellement
+produits et interrompt UnRAR si les limites effectives sont depassees. Le
+callback `UCM_LARGEDICT` refuse toute demande tardive du moteur.
+
+Le POC desactive `RAR_SMP`. UnRAR travaille donc avec un seul worker natif hors
+thread JS/UI, ce qui rend les allocations auxiliaires plus previsibles. Le debit
+mono-thread sur de grands CBR devra etre mesure dans #34 avant de reconsiderer ce
+compromis memoire/performance.
+
+Ce double controle repond a l'avertissement officiel RARLAB : UnRAR 7 peut
+representer des dictionnaires allant jusqu'a 1 Tio, tandis que sa limite interne
+generale de 4 Gio reste trop elevee pour un telephone.
+
+### Securite et erreurs
+
+Avant extraction, le POC :
+
+- normalise les separateurs Unix et Windows ;
+- refuse chemins absolus, lettres de lecteur, composants vides, `.` et `..` ;
+- refuse caracteres de controle et chemins trop longs ;
+- refuse les collisions de chemins sans tenir compte de la casse ;
+- refuse tous les liens, jonctions, hard links et redirections UnRAR ;
+- refuse les entrees chiffrees et les en-tetes chiffres sans demander de mot de
+  passe ;
+- refuse les archives multi-volumes et entrees scindees dans ce POC ;
+- classe les erreurs UnRAR corrompues, acces, ecriture, memoire et chiffrement
+  avec des codes stables.
+
+Le repertoire de destination doit ne pas exister. Le coeur le cree et le supprime
+recursivement sur toute erreur. Sur succes, il reste disponible pour
+`ImageDirectoryImportPipeline`; `cleanup` refuse tout chemin hors de la racine
+temporaire native. Le futur appelant #34 devra toujours l'appeler dans un
+`finally` apres delegation au pipeline Images.
+
+### Archives solides
+
+UnRAR conserve l'etat du dictionnaire solide dans le handle d'archive. Le POC
+lit et extrait donc les entrees dans leur ordre d'origine avec un seul handle.
+Les memes limites par entree, cumulees et de dictionnaire s'appliquent. Ce chemin
+compile, mais l'execution d'un corpus solide sur appareils fait partie de la QA
+obligatoire de #34.
+
+## Portabilite Android
+
+### `lutimes` et Bionic
+
+La source stable active `USE_LUTIMES` sur Linux, alors que Bionic n'expose pas
+`lutimes`. L'amont contient deja la voie portable correcte : si
+`_POSIX_C_SOURCE >= 200809L`, `ulinks.cpp` utilise
+`utimensat(AT_FDCWD, ..., AT_SYMLINK_NOFOLLOW)`.
+
+Le CMake du POC definit donc `_POSIX_C_SOURCE=200809L`. La compilation Android
+utilise le code `utimensat` amont, conserve la semantique no-follow et ne modifie
+ni UnRAR ni `node_modules`. Le shim experimental `-Dlutimes=utimes`, qui suivait
+potentiellement un lien, est abandonne.
+
+### Resultats de compilation
+
+Commande reproductible :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/verify-cbr-poc-android.ps1
+```
+
+Environnement : Expo SDK 57.0.18, React Native 0.86.3, NDK 27.1.12297006,
+CMake 3.22.1, Ninja, API Android 24, Clang 18.0.2 et C++17. Le build de mesure
+utilise `-Oz`, des sections eliminables et un strip des symboles.
+
+Resultats du 17 septembre 2026 :
+
+| ABI | `.so` non strippe | `.so` strippe |
+| --- | ---: | ---: |
+| armeabi-v7a | 3 607 372 octets | 642 568 octets |
+| arm64-v8a | 4 362 272 octets | 1 016 056 octets |
+| x86 | 3 832 828 octets | 1 026 852 octets |
+| x86_64 | 4 166 264 octets | 997 664 octets |
+
+Ces chiffres incluent le moteur, le wrapper C++ et JNI, mais ne sont pas un
+delta AAB compresse. Un AAB distribue ne livre normalement que l'ABI du device.
+Le cout observe n'est pas manifestement disproportionne pour le perimetre CBR.
+Le delta AAB release exact reste a mesurer dans #34.
+
+Un executable arm64 des tests natifs de chemins et limites est egalement
+compile par le script. Aucun appareil ou emulateur n'etait connecte pour
+l'executer.
+
+### Integration Expo / Gradle / EAS
+
+`expo-modules-autolinking` resout le module et sa classe Kotlin. Un projet Android
+est genere correctement par `npx expo prebuild --platform android --clean
+--no-install`.
+
+Le build Gradle complet du projet s'arrete avant la configuration du POC dans
+`@react-native/gradle-plugin/settings.gradle.kts:16` avec `plugins` et `id` non
+resolus. La meme panne du projet SDK 57 / Gradle 9.3.1 est deja documentee sur
+`main` dans l'ADR CBZ et ne provient pas du CMake ou du module CBR. Le build
+CMake/NDK direct prouve les quatre ABI sans modifier le dossier Android genere
+ni `node_modules`.
+
+#34 devra reexecuter un development build et un build EAS une fois ce probleme
+global de toolchain resolu. Le POC est structure comme un module Expo local
+standard et ne requiert pas de config plugin ou de modification native manuelle.
+
+## Architecture iOS
+
+Le POC fournit un podspec avec la meme liste explicite de sources UnRAR et le
+meme wrapper C++ qu'Android, un bridge Objective-C++ mince, un module Expo Swift
+sur file GCD dediee, et les memes limites et codes d'erreur portes par le coeur
+commun. Aucun fork de moteur ni moteur iOS divergent n'est requis.
+
+Windows ne fournit pas Xcode/CocoaPods. La compilation iOS et la taille IPA ne
+peuvent donc pas etre affirmees comme validees. Elles restent obligatoires dans
+#34 avec les commandes documentees dans le README du module. Cette absence
+d'environnement n'est pas un obstacle raisonnable a l'architecture commune.
+
+## RAR4, RAR5, corruption et chiffrement
+
+Le moteur officiel retenu implemente RAR4 et RAR5. Le POC appelle son API DLL
+commune, sans parser ou reimplementer les algorithmes de compression. Les chemins
+de resultat suivants sont implementes nativement :
+
+- RAR4/RAR5 valides : extraction entree par entree vers disque ;
+- archives solides : extraction sequentielle avec un handle unique ;
+- archive corrompue ou format inconnu : `ERR_CBR_CORRUPTED_ARCHIVE` ;
+- entree ou en-tete chiffre : `ERR_CBR_ENCRYPTED_ARCHIVE` avant tout prompt ;
+- dictionnaire excessif : `ERR_CBR_DICTIONARY_LIMIT` avant traitement ;
+- sortie excessive : interruption native et nettoyage du repertoire temporaire.
+
+La compilation couvre ces chemins et les tests de depot verifient les invariants
+du wrapper. Leur execution avec de vraies fixtures RAR4, RAR5, solides,
+corrompues et chiffrees sur Android/iOS est explicitement reportee a #34, car
+aucun appareil Android ni environnement iOS n'est disponible ici. Le GO porte
+sur la faisabilite et l'architecture, pas sur une pretendue QA produit achevee.
+
+## Reutilisation du pipeline Images
+
+Le POC s'arrete volontairement au repertoire temporaire. #34 devra fournir un
+adaptateur application `CbrArchiveExtractor` analogue au chemin CBZ, puis appeler
+exclusivement `ImageDirectoryImportPipeline.importDirectory`.
+
+Il est interdit dans #34 de recopier la selection JPEG/PNG, le tri naturel, la
+validation d'images, le choix de la premiere page comme couverture, le staging,
+la persistence ou les compensations. Ces responsabilites restent celles de
+IMP-03.
+
+## Travail obligatoire dans #34
+
+Avant de considerer CBR livrable, #34 doit :
+
+1. connecter la copie/permission `ImportSource` au chemin natif sans lire le CBR
+   en JavaScript ;
+2. enregistrer l'extracteur et la detection CBR dans le pipeline d'import commun ;
+3. deleguer le repertoire extrait a `ImageDirectoryImportPipeline` et garantir
+   le nettoyage dans tous les chemins ;
+4. executer sur Android et iOS un corpus RAR4/RAR5, solide, corrompu, chiffre,
+   traversal, lien, dictionnaire excessif, entree excessive, cumul excessif et
+   plus de 10 000 entrees ;
+5. mesurer RSS/PSS native, pic de heap, duree et fichiers temporaires sur appareil
+   avec de grands CBR ;
+6. verifier annulation/background/low-memory et fermeture deterministe du handle ;
+7. construire development et release via EAS sur Android et iOS ;
+8. mesurer les deltas AAB et IPA reels ;
+9. faire relire les notices UnRAR avant publication ;
+10. conserver #34 ouverte jusqu'a satisfaction de ses criteres produit.
+
+## Alternatives non retenues
+
+Les conclusions du premier passage restent valides pour les alternatives :
+
+- `react-native-unarchive` combine 7-Zip-JBinding 16.02 sur Android et UnrarKit
+  5.8.1 sur iOS, avec moteurs divergents, cout Android important et limites non
+  exposees ;
+- `uncompress-react-native` epingle Junrar 7.4 sans RAR5 et une chaine React
+  Native/Gradle obsolete ;
+- Junrar 8 est credible sur Android mais n'offre pas le meme moteur sur iOS ;
+- libarchive a une licence permissive et une API streaming, mais conserve des
+  limites RAR5 amont ;
+- 7-Zip-JBinding embarque un moteur generaliste ancien et ajoute des obligations
+  LGPL ;
+- JavaScript/WASM recreerait les copies archive/JS que le pipeline natif doit
+  eviter.
+
+Le GO concerne exclusivement l'integration directe de la source officielle
+UnRAR avec les garde-fous Reebbon.
+
+## Verification du spike
+
+- autolinking Expo Android : module et classe Kotlin resolus ;
+- autolinking Expo Apple : module local detecte ;
+- prebuild Android : termine ;
+- CMake/NDK Android : quatre ABI compilees ;
+- executable de tests natifs arm64 : compile ;
+- tests TypeScript/architecture : 226 passes ;
+- appareil Android : non disponible ;
+- Gradle application complet : bloque avant le POC par le plugin RN de `main` ;
+- iOS/Xcode/CocoaPods : non disponible sous Windows ;
+- EAS Android/iOS et delta AAB/IPA : a executer dans #34.
 
 ## Sources officielles et upstream
 
-- [RARLAB - source officielle et avertissement sur les ports contribues](https://www.rarlab.com/rar_add.htm)
-- [RARLAB - notes d'integration UnRAR 7 et risque de dictionnaire](https://www.rarlab.com/unrar7notes.htm)
+- [RARLAB - source officielle UnRAR et avertissement sur les ports contribues](https://www.rarlab.com/rar_add.htm)
+- [RARLAB - notes UnRAR 7 et risque de dictionnaire](https://www.rarlab.com/unrar7notes.htm)
 - [RARLAB - specification RAR5](https://www.rarlab.com/technote.htm)
-- [Expo - ajout de code natif et modules locaux](https://docs.expo.dev/workflow/customizing/)
-- [Expo - builds EAS locaux et prerequis natifs](https://docs.expo.dev/build-reference/local-builds/)
-- [UnrarKit - moteur UnRAR 5.8.1 et API streaming](https://github.com/abbeycode/UnrarKit/blob/7cd8c32bcfc1e1a7d16bc5b58cbd37a6eaf8b316/README.md)
-- [`react-native-unarchive` - moteur Android 7-Zip-JBinding](https://github.com/pushpender-singh-ap/react-native-unarchive/blob/ee8d07218126226ae0aa085ecc3d3c86a6c6cdb3/android/build.gradle)
-- [`react-native-unarchive` - moteur iOS UnrarKit](https://github.com/pushpender-singh-ap/react-native-unarchive/blob/ee8d07218126226ae0aa085ecc3d3c86a6c6cdb3/Unarchive.podspec)
-- [`uncompress-react-native` - moteur Android Junrar 7.4.0](https://github.com/didisouzacosta/uncompress-react-native/blob/2f3338ce2f01fb97b9e39d6a9a5bbb49fbb8b95b/android/build.gradle)
-- [`uncompress-react-native` - moteur iOS UnrarKit](https://github.com/didisouzacosta/uncompress-react-native/blob/2f3338ce2f01fb97b9e39d6a9a5bbb49fbb8b95b/uncompress-react-native.podspec)
+- [RARLAB - distributions officielles 7.23](https://www.rarlab.com/download.htm)
+- [Expo - modules locaux et plateformes Android/Apple](https://docs.expo.dev/more/create-expo-module/)
+- [Expo - ajout de code natif](https://docs.expo.dev/workflow/customizing/)
+- [Expo - integration d'une bibliotheque existante et autolinking](https://docs.expo.dev/modules/existing-library/)
 - [7-Zip - licence LGPL/BSD/UnRAR](https://www.7-zip.org/license.txt)
-- [Junrar 8.0.0 - release RAR5/RAR7](https://github.com/junrar/junrar/releases/tag/v8.0.0)
-- [Junrar - licence UnRAR](https://github.com/junrar/junrar/blob/v8.0.0/LICENSE)
-- [libarchive - formats, streaming et limites RAR](https://github.com/libarchive/libarchive)
-- [libarchive - licence](https://github.com/libarchive/libarchive/blob/v3.8.8/COPYING)
-- [libarchive #3352 - erreur sur une archive RAR5 valide](https://github.com/libarchive/libarchive/issues/3352)
-- [(lib)unarr - absence de support RAR5](https://github.com/selmf/unarr)
-- [node-unrar-js - API en memoire et limites navigateur](https://github.com/YuJianrong/node-unrar.js)
+- [Junrar 8.0.0 - support RAR5/RAR7](https://github.com/junrar/junrar/releases/tag/v8.0.0)
+- [libarchive - formats et limites RAR](https://github.com/libarchive/libarchive)
