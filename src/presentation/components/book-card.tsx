@@ -1,5 +1,5 @@
-import { Image } from 'expo-image';
-import { memo } from 'react';
+import { Image, type ImageLoadEventData } from 'expo-image';
+import { memo, useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { LibraryBookItem } from '@/application';
@@ -19,12 +19,27 @@ const formatLabels: Record<BookFormat, string> = {
 export interface BookCardProps {
   readonly item: LibraryBookItem;
   readonly onBookPress: (book: Book) => void;
+  readonly onCoverEvent?: (event: LibraryCoverEvent) => void;
   readonly width: number;
 }
+
+export type LibraryCoverEvent =
+  | { readonly kind: 'mounted'; readonly bookId: string }
+  | { readonly kind: 'load-start'; readonly bookId: string }
+  | {
+      readonly kind: 'load-complete';
+      readonly bookId: string;
+      readonly cacheType: ImageLoadEventData['cacheType'];
+      readonly width: number;
+      readonly height: number;
+    }
+  | { readonly kind: 'load-failed'; readonly bookId: string }
+  | { readonly kind: 'unmounted'; readonly bookId: string };
 
 export const BookCard = memo(function BookCard({
   item,
   onBookPress,
+  onCoverEvent,
   width,
 }: BookCardProps) {
   const { book } = item;
@@ -32,6 +47,14 @@ export const BookCard = memo(function BookCard({
   const percentage = Math.round(progress * 100);
   const author = book.author ?? 'Auteur inconnu';
   const accessibilityLabel = `${book.title}, ${author}, ${percentage} pour cent lu`;
+
+  useEffect(() => {
+    if (book.coverUri === undefined) {
+      return;
+    }
+    onCoverEvent?.({ kind: 'mounted', bookId: book.id });
+    return () => onCoverEvent?.({ kind: 'unmounted', bookId: book.id });
+  }, [book.coverUri, book.id, onCoverEvent]);
 
   return (
     <Pressable
@@ -50,7 +73,26 @@ export const BookCard = memo(function BookCard({
           ) : (
             <Image
               accessibilityIgnoresInvertColors
+              allowDownscaling
+              cachePolicy="disk"
               contentFit="cover"
+              decodeFormat="rgb"
+              onError={() =>
+                onCoverEvent?.({ kind: 'load-failed', bookId: book.id })
+              }
+              onLoad={(event) =>
+                onCoverEvent?.({
+                  kind: 'load-complete',
+                  bookId: book.id,
+                  cacheType: event.cacheType,
+                  width: event.source.width,
+                  height: event.source.height,
+                })
+              }
+              onLoadStart={() =>
+                onCoverEvent?.({ kind: 'load-start', bookId: book.id })
+              }
+              recyclingKey={book.id}
               source={book.coverUri}
               style={StyleSheet.absoluteFill}
             />
@@ -86,7 +128,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: designSystemTokens.radii.md,
     backgroundColor: designSystemTokens.colors.ink,
-    backgroundImage: designSystemTokens.gradients.coverFallback,
   },
   fallbackCover: {
     flex: 1,

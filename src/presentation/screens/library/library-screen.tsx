@@ -1,6 +1,7 @@
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   useWindowDimensions,
@@ -15,6 +16,7 @@ import { designSystemTokens } from '@/shared/theme';
 import { AppText } from '../../components/app-text';
 import { AppColorSchemeControl } from '../../components/app-color-scheme-control';
 import { BookCard } from '../../components/book-card';
+import type { LibraryCoverEvent } from '../../components/book-card';
 import { Ribbon } from '../../components/ribbon';
 import { useAppTheme } from '../../hooks/use-app-theme';
 import { getLibraryGridMetrics } from './library-layout';
@@ -30,6 +32,7 @@ export interface LibraryScreenProps {
   readonly onFileImportPress: () => void;
   readonly onImageDirectoryImportPress: () => void;
   readonly onBookPress: (book: Book) => void;
+  readonly onCoverEvent?: (event: LibraryCoverEvent) => void;
   readonly onRetryPress: () => void;
 }
 
@@ -37,6 +40,7 @@ export default function LibraryScreen({
   state,
   isImporting,
   onBookPress,
+  onCoverEvent,
   onFileImportPress,
   onImageDirectoryImportPress,
   onRetryPress,
@@ -62,6 +66,7 @@ export default function LibraryScreen({
           ]}
           data={books}
           keyExtractor={(item) => item.book.id}
+          initialNumToRender={6}
           ListEmptyComponent={
             <LibraryStatus
               onFileImportPress={onFileImportPress}
@@ -81,15 +86,19 @@ export default function LibraryScreen({
           }
           ListHeaderComponentStyle={styles.headerSpacing}
           numColumns={metrics.columns}
+          maxToRenderPerBatch={6}
+          removeClippedSubviews={Platform.OS === 'android'}
           renderItem={({ item }) => (
             <BookCard
               item={item}
               onBookPress={onBookPress}
+              onCoverEvent={onCoverEvent}
               width={metrics.itemWidth}
             />
           )}
           showsVerticalScrollIndicator={false}
           style={[styles.list, { maxWidth: metrics.contentWidth }]}
+          windowSize={3}
         />
       </SafeAreaView>
     </View>

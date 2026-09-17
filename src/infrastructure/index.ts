@@ -3,6 +3,7 @@ export { SqliteApplicationPreferenceRepository } from './database/repositories/s
 export { ExpoDirectoryImportSourcePicker } from './importing/expo-directory-import-source-picker';
 export { ExpoFileImportSourcePicker } from './importing/expo-file-import-source-picker';
 export { ExpoImportDirectoryReader } from './importing/expo-import-directory-reader';
+export { ExpoImportDiagnostics } from './importing/expo-import-diagnostics';
 export { EpubMetadataExtractor } from './importing/epub-metadata-extractor';
 export { ExpoImportFileReader } from './importing/expo-import-file-reader';
 export {
@@ -25,6 +26,7 @@ export {
 } from './reading/expo-epub-renderer-resources';
 export { NativePdfPageThumbnailProvider } from './reading/native-pdf-page-thumbnail-provider';
 export { ExpoImageSetPageProvider } from './reading/expo-image-set-page-provider';
+export { ExpoLibraryCoverThumbnailProvider } from './library/expo-library-cover-thumbnail-provider';
 export type {
   LocalStorage,
   LocalStorageDependencies,

@@ -27,6 +27,11 @@ export type {
   ImportFileReader,
   ImportFileReadError,
 } from './importing/import-file-reader';
+export type {
+  ImportDiagnosticDetails,
+  ImportDiagnostics,
+  ImportDiagnosticStage,
+} from './importing/import-diagnostics';
 export {
   createImportFormatDetector,
   type FormatDetectionError,
@@ -93,6 +98,12 @@ export {
   type ListLibraryBooks,
   type ListLibraryBooksDependencies,
 } from './library/list-library-books';
+export {
+  prepareLibraryCovers,
+  type LibraryCoverThumbnailError,
+  type LibraryCoverThumbnailProvider,
+  type PreparedLibraryCover,
+} from './library/prepare-library-covers';
 export type {
   Reader,
   ReaderError,

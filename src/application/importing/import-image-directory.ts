@@ -6,6 +6,7 @@ import { normalizeBookMetadataText } from './book-metadata-extractor';
 import type { ImportDirectoryEntry, ImportDirectoryReader } from './import-directory-reader';
 import type { ImportFileReader } from './import-file-reader';
 import type { ImportFormatDetector } from './import-format-detector';
+import type { ImportDiagnostics, ImportDiagnosticStage } from './import-diagnostics';
 import type {
   DirectoryImportSource,
   ImportError,
@@ -45,6 +46,7 @@ export interface ImageDirectoryImporterDependencies {
   readonly files: Pick<ImportFileReader, 'readPrefix'>;
   readonly createId: () => string;
   readonly now: () => Date;
+  readonly diagnostics?: ImportDiagnostics;
 }
 
 export interface ImageDirectoryImportContext<F extends ImageImportFormat> {
@@ -80,6 +82,9 @@ export function createImageDirectoryImportPipeline(
 ): ImageDirectoryImportPipeline {
   return {
     async importDirectory(source, context) {
+      await checkpoint(dependencies.diagnostics, 'images-pipeline-start', {
+        format: context.format,
+      });
       const detected = await detectDirectory(dependencies.detector, source);
       if (!detected.ok) {
         return err(errorForImageContext(detected.error, context));
@@ -92,6 +97,10 @@ export function createImageDirectoryImportPipeline(
       if (!listed.ok) {
         return err({ kind: 'permission-or-access-failure', source: context.source });
       }
+      await checkpoint(dependencies.diagnostics, 'images-pipeline-listed', {
+        entryCount: listed.value.length,
+        format: context.format,
+      });
 
       const pages = selectImagePages(listed.value);
       if (pages.length === 0) {
@@ -106,13 +115,17 @@ export function createImageDirectoryImportPipeline(
       if (!validated.ok) {
         return err(validated.error);
       }
+      await checkpoint(dependencies.diagnostics, 'images-pipeline-validated', {
+        format: context.format,
+        pageCount: validated.value.length,
+      });
 
       const title =
         normalizeBookMetadataText(source.title) ??
         normalizeBookMetadataText(source.name) ??
         FALLBACK_IMAGE_BOOK_TITLE;
 
-      return executeImportTransaction(
+      const imported = await executeImportTransaction(
         context.source,
         dependencies,
         async (importId) => {
@@ -141,6 +154,11 @@ export function createImageDirectoryImportPipeline(
             return err({ kind: 'corrupted-source', format: context.format });
           }
 
+          await checkpoint(dependencies.diagnostics, 'images-pipeline-staged', {
+            format: context.format,
+            pageCount: stagedPages.length,
+          });
+
           if (context.afterStaging !== undefined) {
             const finalized = await callAfterStaging(context.afterStaging);
             if (!finalized.ok) {
@@ -166,8 +184,25 @@ export function createImageDirectoryImportPipeline(
           });
         },
       );
+      await checkpoint(dependencies.diagnostics, 'images-pipeline-complete', {
+        format: context.format,
+        ok: imported.ok,
+      });
+      return imported;
     },
   };
+}
+
+async function checkpoint(
+  diagnostics: ImportDiagnostics | undefined,
+  stage: ImportDiagnosticStage,
+  details: Readonly<Record<string, boolean | number | string | null>>,
+): Promise<void> {
+  try {
+    await diagnostics?.checkpoint(stage, details);
+  } catch {
+    // Diagnostics must never alter import behavior.
+  }
 }
 
 export function compareNaturalFileNames(left: string, right: string): number {
