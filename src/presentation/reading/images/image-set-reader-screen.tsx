@@ -65,6 +65,11 @@ interface ViewportSize {
   readonly height: number;
 }
 
+interface ImagePreloadCenter {
+  readonly index: number;
+  readonly sessionId: number;
+}
+
 export default function ImageSetReaderScreen({
   book,
   initialPosition,
@@ -86,6 +91,9 @@ export default function ImageSetReaderScreen({
   );
   const [completionRatio, setCompletionRatio] = useState(0);
   const [zoomedPageIndex, setZoomedPageIndex] = useState<number | undefined>();
+  const preloadCenterRef = useRef<ImagePreloadCenter | undefined>(undefined);
+  const [preloadCenter, setPreloadCenter] =
+    useState<ImagePreloadCenter>();
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const [viewport, setViewport] = useState<ViewportSize>({
     width: 0,
@@ -93,6 +101,10 @@ export default function ImageSetReaderScreen({
   });
   const currentIndex = snapshot.location?.index;
   const totalPages = snapshot.location?.totalPages;
+  const residentCenterIndex =
+    preloadCenter?.sessionId === snapshot.sessionId
+      ? preloadCenter.index
+      : currentIndex;
   const readingDirection =
     snapshot.readingDirection ?? initialReadingDirection;
   const folio = getImageFolio(snapshot.location);
@@ -186,24 +198,49 @@ export default function ImageSetReaderScreen({
   const reportScrollLocation = (
     event: NativeSyntheticEvent<NativeScrollEvent>,
   ) => {
-    if (totalPages === undefined) {
-      return;
-    }
-    const index = getImageIndexFromOffset(
-      event.nativeEvent.contentOffset.x,
-      viewport.width,
-      totalPages,
-      readingDirection,
-    );
+    const index = getIndexFromScrollEvent(event);
     if (index !== undefined) {
+      updatePreloadCenter(index);
       bridge.reportLocation(index);
     }
+  };
+
+  const updatePreloadWindow = (
+    event: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    const index = getIndexFromScrollEvent(event);
+    if (index !== undefined) {
+      updatePreloadCenter(index);
+    }
+  };
+
+  const getIndexFromScrollEvent = (
+    event: NativeSyntheticEvent<NativeScrollEvent>,
+  ): number | undefined =>
+    totalPages === undefined
+      ? undefined
+      : getImageIndexFromOffset(
+          event.nativeEvent.contentOffset.x,
+          viewport.width,
+          totalPages,
+          readingDirection,
+        );
+
+  const updatePreloadCenter = (index: number) => {
+    const current = preloadCenterRef.current;
+    if (current?.sessionId === snapshot.sessionId && current.index === index) {
+      return;
+    }
+    const next = { index, sessionId: snapshot.sessionId };
+    preloadCenterRef.current = next;
+    setPreloadCenter(next);
   };
 
   const isReady =
     snapshot.status === 'ready' &&
     snapshot.pages !== undefined &&
     currentIndex !== undefined &&
+    residentCenterIndex !== undefined &&
     totalPages !== undefined;
 
   return (
@@ -240,7 +277,7 @@ export default function ImageSetReaderScreen({
             )}
             decelerationRate="fast"
             disableIntervalMomentum
-            extraData={currentIndex}
+            extraData={residentCenterIndex}
             getItemLayout={(_data, index) => ({
               index,
               length: viewport.width,
@@ -258,6 +295,7 @@ export default function ImageSetReaderScreen({
               imagePagerVirtualization.maxToRenderPerBatch
             }
             onMomentumScrollEnd={reportScrollLocation}
+            onScroll={updatePreloadWindow}
             onScrollToIndexFailed={({ index }) => {
               listRef.current?.scrollToOffset({
                 animated: false,
@@ -272,7 +310,11 @@ export default function ImageSetReaderScreen({
                   styles.page,
                   { width: viewport.width, height: viewport.height },
                 ]}>
-                {isImagePageResident(item, currentIndex, totalPages) ? (
+                {isImagePageResident(
+                  item,
+                  residentCenterIndex,
+                  totalPages,
+                ) ? (
                   <ZoomableImagePage
                     onRenderFailure={() =>
                       bridge.reportFailure({ kind: 'rendering-failure' })
@@ -287,7 +329,13 @@ export default function ImageSetReaderScreen({
               </View>
             )}
             scrollEnabled={zoomedPageIndex !== currentIndex}
+            scrollEventThrottle={
+              imagePagerVirtualization.scrollEventThrottle
+            }
             showsHorizontalScrollIndicator={false}
+            updateCellsBatchingPeriod={
+              imagePagerVirtualization.updateCellsBatchingPeriod
+            }
             windowSize={imagePagerVirtualization.windowSize}
           />
         ) : null}

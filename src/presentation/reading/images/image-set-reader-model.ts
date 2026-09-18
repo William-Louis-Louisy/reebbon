@@ -9,10 +9,19 @@ import {
 
 const ADJACENT_PAGE_RADIUS = 1;
 
+export const imagePagePreloadConfiguration = {
+  adjacentPageRadius: ADJACENT_PAGE_RADIUS,
+  maximumResidentPages: ADJACENT_PAGE_RADIUS * 2 + 1,
+  cachePolicy: 'none',
+  priority: 'high',
+} as const;
+
 export const imagePagerVirtualization = {
-  initialNumToRender: 3,
-  maxToRenderPerBatch: 3,
-  windowSize: 3,
+  initialNumToRender: imagePagePreloadConfiguration.maximumResidentPages,
+  maxToRenderPerBatch: imagePagePreloadConfiguration.maximumResidentPages,
+  scrollEventThrottle: 16,
+  updateCellsBatchingPeriod: 16,
+  windowSize: imagePagePreloadConfiguration.maximumResidentPages,
 } as const;
 
 export const imageZoomConfiguration = {

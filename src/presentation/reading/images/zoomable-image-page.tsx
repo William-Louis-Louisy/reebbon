@@ -16,6 +16,7 @@ import {
   clampImageScale,
   clampImageTranslation,
   getImagePanBounds,
+  imagePagePreloadConfiguration,
   imageZoomConfiguration,
 } from './image-set-reader-model';
 
@@ -139,10 +140,11 @@ export function ZoomableImagePage({
             accessibilityLabel={`Page ${page.index + 1} sur ${totalPages}`}
             accessible
             allowDownscaling
-            cachePolicy="none"
+            cachePolicy={imagePagePreloadConfiguration.cachePolicy}
             contentFit="contain"
             onError={onRenderFailure}
             onLoad={captureImageSize}
+            priority={imagePagePreloadConfiguration.priority}
             recyclingKey={page.uri}
             source={{ uri: page.uri }}
             style={styles.image}
