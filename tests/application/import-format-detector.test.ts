@@ -88,6 +88,41 @@ test('format detector prepares CBZ reuse while keeping ZIP formats distinct', as
   );
 });
 
+test('format detector recognizes RAR4 and RAR5 CBR signatures', async () => {
+  const reader = createReader({
+    'file:///rar4': [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00],
+    'file:///rar5': [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00],
+  });
+  const detector = createImportFormatDetector({ files: reader });
+
+  assert.deepEqual(
+    await detector.detect({
+      kind: 'file',
+      uri: 'file:///rar4',
+      name: 'legacy.cbr',
+    }),
+    { ok: true, value: 'cbr' },
+  );
+  assert.deepEqual(
+    await detector.detect({
+      kind: 'file',
+      uri: 'file:///rar5',
+      name: 'modern.cbr',
+      mimeType: 'application/vnd.comicbook-rar',
+    }),
+    { ok: true, value: 'cbr' },
+  );
+  assert.deepEqual(
+    await detector.detect({
+      kind: 'file',
+      uri: 'file:///rar5',
+      name: 'provider-book',
+      mimeType: 'application/x-rar',
+    }),
+    { ok: true, value: 'cbr' },
+  );
+});
+
 test('format detector types mismatched signatures and inaccessible files', async () => {
   const reader = createReader({
     'file:///fake': [0x25, 0x50, 0x44, 0x46, 0x2d],

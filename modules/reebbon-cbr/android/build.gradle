@@ -1,0 +1,29 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.bakerscript.reebbon'
+version = '1.0.0'
+
+android {
+  namespace 'expo.modules.reebboncbr'
+
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+
+    externalNativeBuild {
+      cmake {
+        targets 'reebbon-cbr'
+      }
+    }
+  }
+
+  externalNativeBuild {
+    cmake {
+      path '../native/CMakeLists.txt'
+      version '3.22.1'
+    }
+  }
+}

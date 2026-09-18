@@ -78,6 +78,8 @@ function expectedFileFormat(
       return 'pdf';
     case 'cbz':
       return 'cbz';
+    case 'cbr':
+      return 'cbr';
     default:
       return formatFromMimeType(mimeType);
   }
@@ -94,6 +96,12 @@ function formatFromMimeType(
     case 'application/vnd.comicbook+zip':
     case 'application/x-cbz':
       return 'cbz';
+    case 'application/vnd.comicbook-rar':
+    case 'application/x-cbr':
+    case 'application/x-rar':
+    case 'application/x-rar-compressed':
+    case 'application/vnd.rar':
+      return 'cbr';
     default:
       return undefined;
   }
@@ -112,9 +120,18 @@ function signatureMatches(
     case 'epub':
     case 'cbz':
       return hasZipSignature(bytes);
+    case 'cbr':
+      return hasRarSignature(bytes);
     case 'pdf':
       return startsWith(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d]);
   }
+}
+
+function hasRarSignature(bytes: Uint8Array): boolean {
+  return (
+    startsWith(bytes, [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00]) ||
+    startsWith(bytes, [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00])
+  );
 }
 
 function hasZipSignature(bytes: Uint8Array): boolean {

@@ -26,7 +26,7 @@ const IMAGE_SIGNATURE_BYTE_LENGTH = 8;
 const FALLBACK_IMAGE_BOOK_TITLE = 'Ouvrage images';
 
 type ImageMediaType = 'image/jpeg' | 'image/png';
-type ImageImportFormat = Extract<ImportFormat, 'image-directory' | 'cbz'>;
+type ImageImportFormat = Extract<ImportFormat, 'image-directory' | 'cbz' | 'cbr'>;
 
 interface ImagePageSource {
   readonly uri: string;

@@ -59,7 +59,7 @@ function createHarness(options: HarnessOptions = {}) {
     },
   };
   const images: ImageDirectoryImportPipeline = {
-    async importDirectory<F extends 'image-directory' | 'cbz'>(
+    async importDirectory<F extends 'image-directory' | 'cbz' | 'cbr'>(
       directory: Parameters<ImageDirectoryImportPipeline['importDirectory']>[0],
       context: Parameters<ImageDirectoryImportPipeline['importDirectory']>[1],
     ): Promise<Result<ImportResult<F>, ImportError>> {

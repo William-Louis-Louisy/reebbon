@@ -14,6 +14,7 @@ test('import formats resolve to reader formats without exposing archive formats 
   assert.equal(readerFormatForImportFormat('pdf'), 'pdf');
   assert.equal(readerFormatForImportFormat('image-directory'), 'images');
   assert.equal(readerFormatForImportFormat('cbz'), 'images');
+  assert.equal(readerFormatForImportFormat('cbr'), 'images');
 });
 
 test('a CBZ importer returns an image-set book through the common importer port', async () => {

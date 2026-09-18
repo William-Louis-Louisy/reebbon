@@ -1,4 +1,5 @@
 export type {
+  ArchiveRejectionReason,
   DirectoryImportSource,
   FileImportSource,
   ImportError,
@@ -23,6 +24,11 @@ export type {
   CbzArchiveExtractor,
   ExtractedCbzDirectory,
 } from './importing/cbz-archive-extractor';
+export type {
+  CbrArchiveExtractionError,
+  CbrArchiveExtractor,
+  ExtractedCbrDirectory,
+} from './importing/cbr-archive-extractor';
 export type {
   ImportFileReader,
   ImportFileReadError,
@@ -60,6 +66,11 @@ export {
   defaultCbzTitle,
   type CbzImporterDependencies,
 } from './importing/import-cbz';
+export {
+  createCbrImporter,
+  defaultCbrTitle,
+  type CbrImporterDependencies,
+} from './importing/import-cbr';
 export type {
   FileImportSourcePicker,
   FileImportSourcePickerError,
