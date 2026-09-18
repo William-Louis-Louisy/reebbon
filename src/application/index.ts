@@ -104,6 +104,13 @@ export {
   type InvalidEpubFontSizePreferenceError,
 } from './preferences/epub-font-size-preference-service';
 export {
+  createImageReadingDirectionPreferenceService,
+  type ImageReadingDirectionPreferenceService,
+  type ImageReadingDirectionPreferenceServiceDependencies,
+  type ImageReadingDirectionPreferenceServiceError,
+  type InvalidImageReadingDirectionPreferenceError,
+} from './preferences/image-reading-direction-preference-service';
+export {
   createListLibraryBooks,
   type LibraryBookItem,
   type ListLibraryBooks,
@@ -120,6 +127,7 @@ export type {
   ReaderError,
   ReaderFontCustomization,
   ReaderLayoutCustomization,
+  ReaderReadingDirectionCustomization,
   ReaderProgress,
   ReaderTableOfContents,
   ReaderTableOfContentsEntry,

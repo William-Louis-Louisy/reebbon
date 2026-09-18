@@ -51,6 +51,11 @@ test('image bridge delegates navigation and reports native paging locations', as
   });
 
   assert.deepEqual(await bridge.goTo(1), ok(undefined));
+  assert.deepEqual(
+    await bridge.setReadingDirection('right-to-left'),
+    ok(undefined),
+  );
+  assert.equal(bridge.getSnapshot().readingDirection, 'right-to-left');
   assert.deepEqual(bridge.getSnapshot().location, {
     index: 1,
     totalPages: 5,

@@ -3,7 +3,8 @@ import type { ReaderCapabilities } from '@/domain';
 export type ReaderSettingsSection =
   | 'reading-theme'
   | 'font-customization'
-  | 'layout-customization';
+  | 'layout-customization'
+  | 'reading-direction';
 
 export function getReaderSettingsSections(
   capabilities: ReaderCapabilities,
@@ -18,6 +19,9 @@ export function getReaderSettingsSections(
   }
   if (capabilities.layoutCustomization) {
     sections.push('layout-customization');
+  }
+  if (capabilities.configurableReadingDirection) {
+    sections.push('reading-direction');
   }
 
   return sections;

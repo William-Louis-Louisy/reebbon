@@ -28,6 +28,7 @@ interface ReaderSettingsSheetProps {
   readonly fontCustomizationControl?: ReactNode;
   readonly layoutCustomizationControl?: ReactNode;
   readonly onClose: () => void;
+  readonly readingDirectionControl?: ReactNode;
   readonly readingThemeControl?: ReactNode;
   readonly themeName: ReadingThemeName;
   readonly visible: boolean;
@@ -43,6 +44,7 @@ export function ReaderSettingsSheet({
   fontCustomizationControl,
   layoutCustomizationControl,
   onClose,
+  readingDirectionControl,
   readingThemeControl,
   themeName,
   visible,
@@ -170,6 +172,7 @@ export function ReaderSettingsSheet({
                   {controlForSection(section, {
                     fontCustomizationControl,
                     layoutCustomizationControl,
+                    readingDirectionControl,
                     readingThemeControl,
                   })}
                 </SettingsSection>
@@ -217,6 +220,7 @@ function SettingsSection({
 interface SettingsControls {
   readonly fontCustomizationControl?: ReactNode;
   readonly layoutCustomizationControl?: ReactNode;
+  readonly readingDirectionControl?: ReactNode;
   readonly readingThemeControl?: ReactNode;
 }
 
@@ -231,6 +235,8 @@ function controlForSection(
       return controls.fontCustomizationControl;
     case 'layout-customization':
       return controls.layoutCustomizationControl;
+    case 'reading-direction':
+      return controls.readingDirectionControl;
   }
 }
 
@@ -242,6 +248,8 @@ function labelForSection(section: ReaderSettingsSection): string {
       return 'Taille de police';
     case 'layout-customization':
       return 'Mise en page';
+    case 'reading-direction':
+      return 'Sens de lecture';
   }
 }
 

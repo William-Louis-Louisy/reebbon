@@ -21,18 +21,28 @@ import {
   type Reader,
   type ReaderProgress,
 } from '@/application';
-import type { Book, ImageReaderPosition } from '@/domain';
+import {
+  defaultReadingDirection,
+  type Book,
+  type ImageReaderPosition,
+  type ReadingDirection,
+} from '@/domain';
 import { readingThemes } from '@/shared/theme';
 
 import {
+  ReaderChromeButton,
   ReaderFailure,
   ReaderLoading,
   ReaderScreenChrome,
 } from '../reader-screen-chrome';
+import { ReaderSettingsSheet } from '../reader-settings-sheet';
+import { ImageReadingDirectionControl } from './image-reading-direction-control';
 import { ImageSetRenditionBridge } from './image-set-rendition-bridge';
 import {
   getImageFolio,
   getImageIndexFromOffset,
+  getImagePagerIndex,
+  getImagePagesInReadingOrder,
   imagePagerVirtualization,
   isImagePageResident,
 } from './image-set-reader-model';
@@ -43,8 +53,10 @@ const IMAGE_READING_THEME = 'paper' as const;
 export interface ImageSetReaderScreenProps {
   readonly book: Book<'images'>;
   readonly initialPosition?: ImageReaderPosition;
+  readonly initialReadingDirection?: ReadingDirection;
   readonly onClose: () => void;
   readonly onProgressChange: (progress: ReaderProgress<'images'>) => void;
+  readonly onReadingDirectionChange?: (direction: ReadingDirection) => void;
   readonly pageProvider: ImageSetPageProvider;
 }
 
@@ -56,13 +68,15 @@ interface ViewportSize {
 export default function ImageSetReaderScreen({
   book,
   initialPosition,
+  initialReadingDirection = defaultReadingDirection,
   onClose,
   onProgressChange,
+  onReadingDirectionChange,
   pageProvider,
 }: ImageSetReaderScreenProps) {
   const [bridge] = useState(() => new ImageSetRenditionBridge(pageProvider));
   const [reader] = useState<Reader<'images'>>(() =>
-    createImageSetReader(bridge),
+    createImageSetReader(bridge, initialReadingDirection),
   );
   const listRef = useRef<FlatList<ImageSetPage>>(null);
   const snapshot = useSyncExternalStore(
@@ -72,12 +86,15 @@ export default function ImageSetReaderScreen({
   );
   const [completionRatio, setCompletionRatio] = useState(0);
   const [zoomedPageIndex, setZoomedPageIndex] = useState<number | undefined>();
+  const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const [viewport, setViewport] = useState<ViewportSize>({
     width: 0,
     height: 0,
   });
   const currentIndex = snapshot.location?.index;
   const totalPages = snapshot.location?.totalPages;
+  const readingDirection =
+    snapshot.readingDirection ?? initialReadingDirection;
   const folio = getImageFolio(snapshot.location);
 
   useEffect(
@@ -87,10 +104,17 @@ export default function ImageSetReaderScreen({
           if (listRef.current === null || viewport.width <= 0) {
             throw new Error('Image pager is not mounted.');
           }
-          listRef.current.scrollToIndex({ animated: true, index });
+          listRef.current.scrollToIndex({
+            animated: true,
+            index: getImagePagerIndex(
+              index,
+              snapshot.location?.totalPages ?? 0,
+              readingDirection,
+            ),
+          });
         },
       }),
-    [bridge, viewport.width],
+    [bridge, readingDirection, snapshot.location?.totalPages, viewport.width],
   );
 
   useEffect(() => {
@@ -130,6 +154,19 @@ export default function ImageSetReaderScreen({
     void reader.goTo({ kind: 'images', index: currentIndex + offset });
   };
 
+  const selectReadingDirection = (direction: ReadingDirection) => {
+    const customization = reader.readingDirectionCustomization;
+    if (customization === undefined || direction === readingDirection) {
+      return;
+    }
+    void customization.setReadingDirection(direction).then((updated) => {
+      if (updated.ok) {
+        setZoomedPageIndex(undefined);
+        onReadingDirectionChange?.(direction);
+      }
+    });
+  };
+
   const close = () => {
     void reader.close().finally(onClose);
   };
@@ -156,6 +193,7 @@ export default function ImageSetReaderScreen({
       event.nativeEvent.contentOffset.x,
       viewport.width,
       totalPages,
+      readingDirection,
     );
     if (index !== undefined) {
       bridge.reportLocation(index);
@@ -169,22 +207,37 @@ export default function ImageSetReaderScreen({
     totalPages !== undefined;
 
   return (
-    <ReaderScreenChrome
-      bookTitle={book.title}
-      completionRatio={completionRatio}
-      folio={folio}
-      isNextDisabled={!isReady || currentIndex >= totalPages - 1}
-      isPreviousDisabled={!isReady || currentIndex <= 0}
-      onClose={close}
-      onNext={() => navigate(1)}
-      onPrevious={() => navigate(-1)}
-      themeName={IMAGE_READING_THEME}>
-      <View onLayout={updateViewport} style={styles.readerSurface}>
+    <>
+      <ReaderScreenChrome
+        bookTitle={book.title}
+        completionRatio={completionRatio}
+        folio={folio}
+        headerActions={
+          reader.readingDirectionCustomization === undefined ? undefined : (
+            <ReaderChromeButton
+              color={readingThemes[IMAGE_READING_THEME].text}
+              label="Réglages de lecture"
+              onPress={() => setIsSettingsVisible(true)}
+              shortLabel="Sens"
+            />
+          )
+        }
+        isNextDisabled={!isReady || currentIndex >= totalPages - 1}
+        isPreviousDisabled={!isReady || currentIndex <= 0}
+        navigationDirection={readingDirection}
+        onClose={close}
+        onNext={() => navigate(1)}
+        onPrevious={() => navigate(-1)}
+        themeName={IMAGE_READING_THEME}>
+        <View onLayout={updateViewport} style={styles.readerSurface}>
         {isReady && viewport.width > 0 && viewport.height > 0 ? (
           <FlatList
-            key={snapshot.sessionId}
+            key={`${snapshot.sessionId}:${readingDirection}`}
             ref={listRef}
-            data={snapshot.pages}
+            data={getImagePagesInReadingOrder(
+              snapshot.pages,
+              readingDirection,
+            )}
             decelerationRate="fast"
             disableIntervalMomentum
             extraData={currentIndex}
@@ -195,7 +248,11 @@ export default function ImageSetReaderScreen({
             })}
             horizontal
             initialNumToRender={imagePagerVirtualization.initialNumToRender}
-            initialScrollIndex={currentIndex}
+            initialScrollIndex={getImagePagerIndex(
+              currentIndex,
+              totalPages,
+              readingDirection,
+            )}
             keyExtractor={(page) => page.uri}
             maxToRenderPerBatch={
               imagePagerVirtualization.maxToRenderPerBatch
@@ -234,8 +291,8 @@ export default function ImageSetReaderScreen({
             windowSize={imagePagerVirtualization.windowSize}
           />
         ) : null}
-      </View>
-      {snapshot.status === 'failure' ? (
+        </View>
+        {snapshot.status === 'failure' ? (
         <ReaderFailure
           message="Les pages locales sont peut-être manquantes, endommagées ou illisibles."
           onClose={close}
@@ -243,14 +300,31 @@ export default function ImageSetReaderScreen({
           themeName={IMAGE_READING_THEME}
           title="Cet ouvrage image ne peut pas être affiché."
         />
-      ) : null}
-      {snapshot.status === 'opening' ? (
+        ) : null}
+        {snapshot.status === 'opening' ? (
         <ReaderLoading
           label="Ouverture de l’ouvrage image…"
           themeName={IMAGE_READING_THEME}
         />
-      ) : null}
-    </ReaderScreenChrome>
+        ) : null}
+      </ReaderScreenChrome>
+      <ReaderSettingsSheet
+        capabilities={reader.capabilities}
+        onClose={() => setIsSettingsVisible(false)}
+        readingDirectionControl={
+          reader.readingDirectionCustomization === undefined ? undefined : (
+            <ImageReadingDirectionControl
+              direction={readingDirection}
+              disabled={snapshot.status !== 'ready'}
+              onSelect={selectReadingDirection}
+              themeName={IMAGE_READING_THEME}
+            />
+          )
+        }
+        themeName={IMAGE_READING_THEME}
+        visible={isSettingsVisible}
+      />
+    </>
   );
 }
 

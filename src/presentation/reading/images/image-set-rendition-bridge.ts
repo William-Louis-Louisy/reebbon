@@ -5,7 +5,13 @@ import type {
   ImageSetRenditionError,
   ImageSetRenditionLocation,
 } from '@/application';
-import { err, ok, type Result } from '@/domain';
+import {
+  defaultReadingDirection,
+  err,
+  ok,
+  type ReadingDirection,
+  type Result,
+} from '@/domain';
 
 export interface ImageSetRenditionControls {
   readonly setIndex: (index: number) => void;
@@ -16,6 +22,7 @@ export interface ImageSetRenditionSnapshot {
   readonly sessionId: number;
   readonly pages?: readonly ImageSetPage[];
   readonly location?: ImageSetRenditionLocation;
+  readonly readingDirection?: ReadingDirection;
   readonly error?: ImageSetRenditionError;
 }
 
@@ -49,6 +56,7 @@ export class ImageSetRenditionBridge implements ImageSetRendition {
     contentUri: string,
     totalPages: number,
     initialIndex?: number,
+    readingDirection: ReadingDirection = defaultReadingDirection,
   ): Promise<Result<void, ImageSetRenditionError>> {
     const sessionId = this.snapshot.sessionId + 1;
     this.publish({ status: 'opening', sessionId });
@@ -87,6 +95,7 @@ export class ImageSetRenditionBridge implements ImageSetRendition {
       sessionId,
       pages: loaded.value,
       location,
+      readingDirection,
     });
     return ok(undefined);
   }
@@ -116,6 +125,16 @@ export class ImageSetRenditionBridge implements ImageSetRendition {
         ? ok(location)
         : err({ kind: 'rendering-failure' }),
     );
+  }
+
+  public setReadingDirection(
+    direction: ReadingDirection,
+  ): Promise<Result<void, ImageSetRenditionError>> {
+    if (this.snapshot.status !== 'ready') {
+      return Promise.resolve(err({ kind: 'rendering-failure' }));
+    }
+    this.publish({ ...this.snapshot, readingDirection: direction });
+    return Promise.resolve(ok(undefined));
   }
 
   public close(): Promise<Result<void, ImageSetRenditionError>> {

@@ -1,6 +1,9 @@
 import {
+  defaultReadingDirection,
   err,
+  isReadingDirection,
   ok,
+  type ReadingDirection,
   type ReadingTheme,
   type Result,
 } from '../../domain';
@@ -22,8 +25,12 @@ export interface ImageSetRendition {
     contentUri: string,
     totalPages: number,
     initialIndex?: number,
+    readingDirection?: ReadingDirection,
   ): Promise<Result<void, ImageSetRenditionError>>;
   goTo(index: number): Promise<Result<void, ImageSetRenditionError>>;
+  setReadingDirection(
+    direction: ReadingDirection,
+  ): Promise<Result<void, ImageSetRenditionError>>;
   getLocation(): Promise<
     Result<ImageSetRenditionLocation, ImageSetRenditionError>
   >;
@@ -37,7 +44,7 @@ export const imageSetReaderCapabilities = {
   fontCustomization: false,
   layoutCustomization: false,
   zoom: true,
-  configurableReadingDirection: false,
+  configurableReadingDirection: true,
   doublePage: false,
 } as const;
 
@@ -45,9 +52,13 @@ type ReaderState = 'closed' | 'opening' | 'open' | 'failed';
 
 export function createImageSetReader(
   rendition: ImageSetRendition,
+  initialReadingDirection: ReadingDirection = defaultReadingDirection,
 ): Reader<'images'> {
   let state: ReaderState = 'closed';
   let knownTotalPages: number | undefined;
+  let readingDirection = isReadingDirection(initialReadingDirection)
+    ? initialReadingDirection
+    : defaultReadingDirection;
 
   return {
     format: 'images',
@@ -74,7 +85,12 @@ export function createImageSetReader(
       state = 'opening';
       knownTotalPages = totalPages;
       const opened = await callRendition(() =>
-        rendition.open(book.fileUri, totalPages, initialPosition?.index),
+        rendition.open(
+          book.fileUri,
+          totalPages,
+          initialPosition?.index,
+          readingDirection,
+        ),
       );
       state = opened.ok ? 'open' : 'failed';
       return opened;
@@ -116,6 +132,23 @@ export function createImageSetReader(
     },
     async setTheme(_theme: ReadingTheme) {
       return state === 'open' ? ok(undefined) : err({ kind: 'not-open' });
+    },
+    readingDirectionCustomization: {
+      async setReadingDirection(direction) {
+        if (state !== 'open') {
+          return err({ kind: 'not-open' });
+        }
+        if (!isReadingDirection(direction)) {
+          return err({ kind: 'rendering-failure' });
+        }
+        const updated = await callRendition(() =>
+          rendition.setReadingDirection(direction),
+        );
+        if (updated.ok) {
+          readingDirection = direction;
+        }
+        return updated;
+      },
     },
     async close() {
       if (state === 'closed') {

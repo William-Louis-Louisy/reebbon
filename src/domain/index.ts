@@ -5,7 +5,12 @@ export {
   type AppColorScheme,
 } from './preferences/app-color-scheme';
 export type { Bookmark, BookmarkId, BookmarkRecord } from './reading/bookmark';
-export type { ReaderCapabilities, ReadingDirection } from './reading/reader-capabilities';
+export {
+  defaultReadingDirection,
+  isReadingDirection,
+  type ReaderCapabilities,
+  type ReadingDirection,
+} from './reading/reader-capabilities';
 export {
   defaultReaderFontSize,
   isReaderFontSize,

@@ -10,6 +10,7 @@ import {
   createEpubFontSizePreferenceService,
   createImageDirectoryImporter,
   createImageDirectoryImportPipeline,
+  createImageReadingDirectionPreferenceService,
   createImportFormatDetector,
   createListLibraryBooks,
   createPdfImporter,
@@ -21,19 +22,22 @@ import {
   type CbrArchiveExtractor,
   type DirectoryImportSource,
   type EpubFontSizePreferenceService,
-  type ImportError,
   type FileImportSource,
+  type ImageReadingDirectionPreferenceService,
+  type ImportError,
   type LibraryBookItem,
   type ReaderProgress,
   type ReadingProgressService,
 } from '@/application';
 import {
+  defaultReadingDirection,
   defaultReaderFontSize,
   type Book,
   type BookFormat,
   type EpubReaderPosition,
   type ReaderFontSize,
   type ReaderPositionFor,
+  type ReadingDirection,
 } from '@/domain';
 import {
   clearEpubRendererCache,
@@ -125,18 +129,29 @@ interface EpubReadingSession {
   readonly storage?: LocalStorage;
 }
 
-interface PagedReadingSession<F extends 'pdf' | 'images'> {
-  readonly kind: F;
-  readonly book: Book<F>;
-  readonly initialPosition?: ReaderPositionFor<F>;
+interface PdfReadingSession {
+  readonly kind: 'pdf';
+  readonly book: Book<'pdf'>;
+  readonly initialPosition?: ReaderPositionFor<'pdf'>;
+  readonly progress?: ReadingProgressService;
+  readonly storage?: LocalStorage;
+}
+
+interface ImageReadingSession {
+  readonly kind: 'images';
+  readonly book: Book<'images'>;
+  readonly initialPosition?: ReaderPositionFor<'images'>;
+  readonly readingDirection: ReadingDirection;
+  readonly readingDirectionPreferences?:
+    ImageReadingDirectionPreferenceService;
   readonly progress?: ReadingProgressService;
   readonly storage?: LocalStorage;
 }
 
 type ReadingSession =
   | EpubReadingSession
-  | PagedReadingSession<'pdf'>
-  | PagedReadingSession<'images'>;
+  | PdfReadingSession
+  | ImageReadingSession;
 
 type ReadingSessionWarning =
   | 'storage-unavailable'
@@ -154,7 +169,7 @@ export default function LibraryRoute() {
     useState<ReadingSession | null>(null);
   const isOpeningReader = useRef(false);
   const didReportProgressFailure = useRef(false);
-  const didReportFontSizeFailure = useRef(false);
+  const didReportPreferenceFailure = useRef(false);
   const didRecordStableLibrary = useRef(false);
   const pendingLibraryReturn = useRef(false);
 
@@ -320,14 +335,14 @@ export default function LibraryRoute() {
     }
     isOpeningReader.current = true;
     didReportProgressFailure.current = false;
-    didReportFontSizeFailure.current = false;
+    didReportPreferenceFailure.current = false;
     void preparation
       .then(({ session, warning }) => {
         if (warning !== undefined) {
           didReportProgressFailure.current =
             warning !== 'preferences-unavailable';
-          didReportFontSizeFailure.current =
-            session.kind === 'epub' && warning !== 'progress-unavailable';
+          didReportPreferenceFailure.current =
+            session.kind !== 'pdf' && warning !== 'progress-unavailable';
           showReadingSessionWarning(warning, session.kind);
         }
         setReadingSession(session);
@@ -381,11 +396,28 @@ export default function LibraryRoute() {
       return;
     }
     void session.fontSizePreferences.save(fontSize).then((saved) => {
-      if (!saved.ok && !didReportFontSizeFailure.current) {
-        didReportFontSizeFailure.current = true;
+      if (!saved.ok && !didReportPreferenceFailure.current) {
+        didReportPreferenceFailure.current = true;
         showReadingSessionWarning('preferences-unavailable');
       }
     });
+  };
+
+  const persistImageReadingDirection = (
+    session: ImageReadingSession,
+    direction: ReadingDirection,
+  ) => {
+    if (session.readingDirectionPreferences === undefined) {
+      return;
+    }
+    void session.readingDirectionPreferences
+      .save(session.book.id, direction)
+      .then((saved) => {
+        if (!saved.ok && !didReportPreferenceFailure.current) {
+          didReportPreferenceFailure.current = true;
+          showReadingSessionWarning('preferences-unavailable', 'images');
+        }
+      });
   };
 
   const closeReader = () => {
@@ -461,9 +493,13 @@ export default function LibraryRoute() {
           <ImageSetReaderScreen
             book={readingSession.book}
             initialPosition={readingSession.initialPosition}
+            initialReadingDirection={readingSession.readingDirection}
             onClose={closeReader}
             onProgressChange={(progress) =>
               persistReadingProgress(readingSession, progress)
+            }
+            onReadingDirectionChange={(direction) =>
+              persistImageReadingDirection(readingSession, direction)
             }
             pageProvider={imageSetPageProvider}
           />
@@ -485,7 +521,7 @@ function prepareSupportedReadingSession(
   if (isPdfBook(book)) {
     return preparePagedReadingSession(book);
   }
-  return isImageBook(book) ? preparePagedReadingSession(book) : undefined;
+  return isImageBook(book) ? prepareImageReadingSession(book) : undefined;
 }
 
 function isEpubBook(book: Book): book is Book<'epub'> {
@@ -556,10 +592,10 @@ async function prepareEpubReadingSession(
   }
 }
 
-async function preparePagedReadingSession<F extends 'pdf' | 'images'>(
-  book: Book<F>,
+async function preparePagedReadingSession(
+  book: Book<'pdf'>,
 ): Promise<{
-  readonly session: PagedReadingSession<F>;
+  readonly session: PdfReadingSession;
   readonly warning?: ReadingSessionWarning;
 }> {
   let storage: LocalStorage | undefined;
@@ -601,10 +637,83 @@ async function preparePagedReadingSession<F extends 'pdf' | 'images'>(
   }
 }
 
+async function prepareImageReadingSession(
+  book: Book<'images'>,
+): Promise<{
+  readonly session: ImageReadingSession;
+  readonly warning?: ReadingSessionWarning;
+}> {
+  let storage: LocalStorage | undefined;
+  try {
+    const initialized = await initializeLocalStorage();
+    if (!initialized.ok) {
+      return {
+        session: {
+          kind: 'images',
+          book,
+          readingDirection: defaultReadingDirection,
+        },
+        warning: 'storage-unavailable',
+      };
+    }
+
+    storage = initialized.value;
+    const progress = createReadingProgressService({
+      repository: storage.readingProgress,
+      now: () => new Date(),
+    });
+    const readingDirectionPreferences =
+      createImageReadingDirectionPreferenceService({
+        repository: storage.preferences,
+        now: () => new Date(),
+      });
+    const [loadedProgress, loadedDirection] = await Promise.all([
+      progress.load(book),
+      readingDirectionPreferences.load(book.id),
+    ]);
+    const warning = getReadingSessionWarning(
+      loadedProgress.ok,
+      loadedDirection.ok,
+    );
+
+    return {
+      session: {
+        kind: 'images',
+        book,
+        readingDirection: loadedDirection.ok
+          ? loadedDirection.value
+          : defaultReadingDirection,
+        readingDirectionPreferences,
+        progress,
+        storage,
+        ...(!loadedProgress.ok || loadedProgress.value === null
+          ? {}
+          : { initialPosition: loadedProgress.value.position }),
+      },
+      ...(warning === undefined ? {} : { warning }),
+    };
+  } catch {
+    if (storage !== undefined) {
+      await closeQuietly(storage);
+    }
+    return {
+      session: {
+        kind: 'images',
+        book,
+        readingDirection: defaultReadingDirection,
+      },
+      warning: 'storage-unavailable',
+    };
+  }
+}
+
 async function closeReadingSession(session: ReadingSession): Promise<void> {
   await Promise.all([
     session.progress?.flush(),
     session.kind === 'epub' ? session.fontSizePreferences?.flush() : undefined,
+    session.kind === 'images'
+      ? session.readingDirectionPreferences?.flush()
+      : undefined,
   ]);
   if (session.storage !== undefined) {
     await closeQuietly(session.storage);
@@ -618,14 +727,18 @@ function showReadingSessionWarning(
   if (warning === 'preferences-unavailable') {
     Alert.alert(
       'Préférence non enregistrée',
-      'La lecture reste disponible, mais la taille de police ne peut pas être restaurée ou enregistrée pour le moment.',
+      readerKind === 'images'
+        ? 'La lecture reste disponible, mais le sens de lecture ne peut pas être restauré ou enregistré pour le moment.'
+        : 'La lecture reste disponible, mais la taille de police ne peut pas être restaurée ou enregistrée pour le moment.',
     );
     return;
   }
   if (warning === 'reading-data-unavailable') {
     Alert.alert(
       'Réglages de lecture indisponibles',
-      'La lecture reste disponible, mais la progression et la taille de police ne peuvent pas être restaurées ou enregistrées pour le moment.',
+      readerKind === 'images'
+        ? 'La lecture reste disponible, mais la progression et le sens de lecture ne peuvent pas être restaurés ou enregistrés pour le moment.'
+        : 'La lecture reste disponible, mais la progression et la taille de police ne peuvent pas être restaurées ou enregistrées pour le moment.',
     );
     return;
   }
@@ -636,7 +749,9 @@ function showReadingSessionWarning(
     warning === 'storage-unavailable'
       ? readerKind === 'epub'
         ? 'La lecture reste disponible, mais la progression et la taille de police ne peuvent pas être restaurées ou enregistrées.'
-        : 'La lecture reste disponible, mais la progression ne peut pas être restaurée ou enregistrée.'
+        : readerKind === 'images'
+          ? 'La lecture reste disponible, mais la progression et le sens de lecture ne peuvent pas être restaurés ou enregistrés.'
+          : 'La lecture reste disponible, mais la progression ne peut pas être restaurée ou enregistrée.'
       : 'La lecture reste disponible, mais Reebbon ne peut pas restaurer ou enregistrer la position pour le moment.',
   );
 }

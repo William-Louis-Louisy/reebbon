@@ -10,3 +10,9 @@ export interface ReaderCapabilities {
 }
 
 export type ReadingDirection = 'left-to-right' | 'right-to-left';
+
+export const defaultReadingDirection: ReadingDirection = 'left-to-right';
+
+export function isReadingDirection(value: unknown): value is ReadingDirection {
+  return value === 'left-to-right' || value === 'right-to-left';
+}
