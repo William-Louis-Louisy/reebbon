@@ -8,6 +8,8 @@ import {
   clampImageTranslation,
   getImageFolio,
   getImageIndexFromOffset,
+  getImagePagerIndex,
+  getImagePagesInReadingOrder,
   getImagePanBounds,
   getResidentImageIndexes,
   imagePagerVirtualization,
@@ -43,6 +45,27 @@ test('image pager derives bounded zero-based indexes and one-based folios', () =
     total: 5,
   });
   assert.equal(getImageFolio(undefined), undefined);
+});
+
+test('right-to-left paging reverses visual order while preserving canonical indexes', () => {
+  const pages = Array.from({ length: 5 }, (_, index) => ({
+    index,
+    uri: `file:///book/page-${index}.jpg`,
+  }));
+
+  assert.deepEqual(
+    getImagePagesInReadingOrder(pages, 'right-to-left').map(
+      (page) => page.index,
+    ),
+    [4, 3, 2, 1, 0],
+  );
+  assert.equal(getImagePagerIndex(1, 5, 'right-to-left'), 3);
+  assert.equal(
+    getImageIndexFromOffset(3 * 390, 390, 5, 'right-to-left'),
+    1,
+  );
+  assert.equal(getImagePagerIndex(1, 5, 'left-to-right'), 1);
+  assert.equal(getImageIndexFromOffset(390, 390, 5, 'left-to-right'), 1);
 });
 
 test('zoom and pan remain bounded around the contained high-resolution image', () => {

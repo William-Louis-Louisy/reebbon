@@ -7,6 +7,7 @@ import type {
   ReaderFontSize,
   ReaderHorizontalMargin,
   ReaderLineSpacing,
+  ReadingDirection,
   ReadingTheme,
   Result,
 } from '../../domain';
@@ -40,6 +41,12 @@ export interface ReaderLayoutCustomization {
   ): Promise<Result<void, ReaderError>>;
   setLineSpacing(
     lineSpacing: ReaderLineSpacing,
+  ): Promise<Result<void, ReaderError>>;
+}
+
+export interface ReaderReadingDirectionCustomization {
+  setReadingDirection(
+    direction: ReadingDirection,
   ): Promise<Result<void, ReaderError>>;
 }
 
@@ -110,6 +117,21 @@ type ReaderLayoutCustomizationSupport =
       readonly layoutCustomization?: never;
     };
 
+type ReaderReadingDirectionCustomizationSupport =
+  | {
+      readonly capabilities: ReaderCapabilities & {
+        readonly configurableReadingDirection: true;
+      };
+      readonly readingDirectionCustomization: ReaderReadingDirectionCustomization;
+    }
+  | {
+      readonly capabilities: ReaderCapabilities & {
+        readonly configurableReadingDirection: false;
+      };
+      readonly readingDirectionCustomization?: never;
+    };
+
 export type Reader<F extends BookFormat = BookFormat> = ReaderBase<F> &
   ReaderFontCustomizationSupport &
-  ReaderLayoutCustomizationSupport;
+  ReaderLayoutCustomizationSupport &
+  ReaderReadingDirectionCustomizationSupport;

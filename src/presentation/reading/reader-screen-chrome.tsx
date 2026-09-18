@@ -7,7 +7,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { designSystemTokens, readingThemes, type ReadingThemeName } from '@/shared/theme';
+import type { ReadingDirection } from '@/domain';
+import {
+  designSystemTokens,
+  readingThemes,
+  type ReadingThemeName,
+} from '@/shared/theme';
 
 import { AppText } from '../components/app-text';
 import { Ribbon } from '../components/ribbon';
@@ -28,6 +33,7 @@ interface ReaderScreenChromeProps {
   readonly onClose: () => void;
   readonly onNext: () => void;
   readonly onPrevious: () => void;
+  readonly navigationDirection?: ReadingDirection;
   readonly themeName: ReadingThemeName;
 }
 
@@ -42,6 +48,7 @@ export function ReaderScreenChrome({
   onClose,
   onNext,
   onPrevious,
+  navigationDirection = 'left-to-right',
   themeName,
 }: ReaderScreenChromeProps) {
   const theme = readingThemes[themeName];
@@ -68,7 +75,11 @@ export function ReaderScreenChrome({
 
         <View style={styles.rendition}>{children}</View>
 
-        <View style={styles.bottomBar}>
+        <View
+          style={[
+            styles.bottomBar,
+            navigationDirection === 'right-to-left' && styles.bottomBarRtl,
+          ]}>
           <ReaderChromeButton
             color={theme.text}
             disabled={isPreviousDisabled}
@@ -228,6 +239,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: designSystemTokens.spacing[2],
+  },
+  bottomBarRtl: {
+    flexDirection: 'row-reverse',
   },
   folio: {
     alignItems: 'center',

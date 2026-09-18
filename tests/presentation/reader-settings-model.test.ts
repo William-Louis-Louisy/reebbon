@@ -49,16 +49,18 @@ test('reader settings expose personalization controls from active capabilities',
       readingThemeCustomization: true,
       fontCustomization: true,
       layoutCustomization: true,
+      configurableReadingDirection: true,
     }),
     [
       'reading-theme',
       'font-customization',
       'layout-customization',
+      'reading-direction',
     ],
   );
 });
 
-test('unimplemented reader capabilities do not invent settings controls', () => {
+test('reader settings expose reading direction only through its capability', () => {
   assert.deepEqual(
     getReaderSettingsSections({
       ...baseCapabilities,
@@ -67,6 +69,6 @@ test('unimplemented reader capabilities do not invent settings controls', () => 
       configurableReadingDirection: true,
       doublePage: true,
     }),
-    [],
+    ['reading-direction'],
   );
 });

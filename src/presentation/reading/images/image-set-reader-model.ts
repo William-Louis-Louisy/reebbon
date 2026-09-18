@@ -2,6 +2,10 @@ import type {
   ImageSetPage,
   ImageSetRenditionLocation,
 } from '@/application';
+import {
+  defaultReadingDirection,
+  type ReadingDirection,
+} from '@/domain';
 
 const ADJACENT_PAGE_RADIUS = 1;
 
@@ -60,6 +64,7 @@ export function getImageIndexFromOffset(
   offset: number,
   viewportWidth: number,
   totalPages: number,
+  readingDirection: ReadingDirection = defaultReadingDirection,
 ): number | undefined {
   if (
     !Number.isFinite(offset) ||
@@ -70,8 +75,35 @@ export function getImageIndexFromOffset(
   ) {
     return undefined;
   }
-  const index = Math.round(offset / viewportWidth);
-  return isValidIndex(index, totalPages) ? index : undefined;
+  const pagerIndex = Math.round(offset / viewportWidth);
+  return isValidIndex(pagerIndex, totalPages)
+    ? getImagePageIndex(pagerIndex, totalPages, readingDirection)
+    : undefined;
+}
+
+export function getImagePagerIndex(
+  pageIndex: number,
+  totalPages: number,
+  readingDirection: ReadingDirection,
+): number {
+  return readingDirection === 'right-to-left'
+    ? totalPages - 1 - pageIndex
+    : pageIndex;
+}
+
+export function getImagePageIndex(
+  pagerIndex: number,
+  totalPages: number,
+  readingDirection: ReadingDirection,
+): number {
+  return getImagePagerIndex(pagerIndex, totalPages, readingDirection);
+}
+
+export function getImagePagesInReadingOrder(
+  pages: readonly ImageSetPage[],
+  readingDirection: ReadingDirection,
+): readonly ImageSetPage[] {
+  return readingDirection === 'right-to-left' ? [...pages].reverse() : pages;
 }
 
 export function getImagePanBounds(
