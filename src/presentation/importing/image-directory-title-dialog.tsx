@@ -23,7 +23,7 @@ export interface ImageImportTitleDialogProps {
   readonly defaultTitle: string;
   readonly onCancel: () => void;
   readonly onConfirm: (title: string) => void;
-  readonly sourceKind: 'directory' | 'cbz';
+  readonly sourceKind: 'directory' | 'cbz' | 'cbr';
 }
 
 export function ImageImportTitleDialog({
@@ -35,7 +35,9 @@ export function ImageImportTitleDialog({
   const [title, setTitle] = useState(defaultTitle);
   const theme = useAppTheme();
   const normalizedTitle = normalizeBookMetadataText(title);
-  const sourceLabel = sourceKind === 'cbz' ? 'Archive CBZ' : 'Dossier d’images';
+  const archiveLabel = sourceKind === 'cbr' ? 'CBR' : 'CBZ';
+  const sourceLabel =
+    sourceKind === 'directory' ? 'Dossier d’images' : `Archive ${archiveLabel}`;
 
   return (
     <Modal
@@ -56,7 +58,7 @@ export function ImageImportTitleDialog({
           ]}
         />
         <Pressable
-          accessibilityLabel={`Annuler l’import ${sourceKind === 'cbz' ? 'de l’archive' : 'du dossier'}`}
+          accessibilityLabel={`Annuler l’import ${sourceKind === 'directory' ? 'du dossier' : 'de l’archive'}`}
           accessibilityRole="button"
           onPress={onCancel}
           style={StyleSheet.absoluteFill}
@@ -74,7 +76,7 @@ export function ImageImportTitleDialog({
               </AppText>
               <AppText variant="screenTitle">Titre de l’ouvrage</AppText>
               <AppText tone="muted">
-                {sourceKind === 'cbz' ? 'Le nom de l’archive' : 'Le nom du dossier'} est
+                {sourceKind === 'directory' ? 'Le nom du dossier' : 'Le nom de l’archive'} est
                 proposé par défaut. Vous pouvez le modifier avant l’import.
               </AppText>
               <TextInput

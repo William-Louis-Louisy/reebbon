@@ -5,6 +5,7 @@ import { Alert, InteractionManager, Modal } from 'react-native';
 
 import {
   createCbzImporter,
+  createCbrImporter,
   createEpubImporter,
   createEpubFontSizePreferenceService,
   createImageDirectoryImporter,
@@ -14,8 +15,10 @@ import {
   createPdfImporter,
   createReadingProgressService,
   defaultCbzTitle,
+  defaultCbrTitle,
   prepareLibraryCovers,
   type CbzArchiveExtractor,
+  type CbrArchiveExtractor,
   type DirectoryImportSource,
   type EpubFontSizePreferenceService,
   type ImportError,
@@ -72,6 +75,11 @@ const importMimeTypes = [
   'application/vnd.comicbook+zip',
   'application/x-cbz',
   'application/zip',
+  'application/vnd.comicbook-rar',
+  'application/x-cbr',
+  'application/x-rar',
+  'application/x-rar-compressed',
+  'application/vnd.rar',
 ] as const;
 const importSourcePicker = new ExpoFileImportSourcePicker();
 const importDiagnostics = new ExpoImportDiagnostics();
@@ -89,7 +97,11 @@ const pdfMetadataExtractor = new PdfMetadataExtractor(pdfFirstPageRenderer);
 
 type ImportFlowResult =
   | { readonly status: 'cancelled' }
-  | { readonly status: 'cbz-selected'; readonly source: FileImportSource }
+  | {
+      readonly status: 'image-archive-selected';
+      readonly format: 'cbz' | 'cbr';
+      readonly source: FileImportSource;
+    }
   | { readonly status: 'success'; readonly books: readonly LibraryBookItem[] }
   | {
       readonly status: 'selection-failure';
@@ -101,7 +113,7 @@ type ImportFlowResult =
 
 type PendingImageImport =
   | { readonly kind: 'directory'; readonly source: DirectoryImportSource }
-  | { readonly kind: 'cbz'; readonly source: FileImportSource };
+  | { readonly kind: 'cbz' | 'cbr'; readonly source: FileImportSource };
 
 interface EpubReadingSession {
   readonly kind: 'epub';
@@ -211,8 +223,8 @@ export default function LibraryRoute() {
   };
 
   const completeImport = (result: ImportFlowResult) => {
-    if (result.status === 'cbz-selected') {
-      setPendingImageImport({ kind: 'cbz', source: result.source });
+    if (result.status === 'image-archive-selected') {
+      setPendingImageImport({ kind: result.format, source: result.source });
       return;
     }
     if (result.status === 'success') {
@@ -281,7 +293,9 @@ export default function LibraryRoute() {
     const operation =
       pending.kind === 'directory'
         ? runImageDirectoryImport({ ...pending.source, title })
-        : runCbzImport({ ...pending.source, title });
+        : pending.kind === 'cbz'
+          ? runCbzImport({ ...pending.source, title })
+          : runCbrImport({ ...pending.source, title });
     void operation
       .then(completeImport)
       .catch(() => {
@@ -402,7 +416,9 @@ export default function LibraryRoute() {
           defaultTitle={
             pendingImageImport.kind === 'cbz'
               ? defaultCbzTitle(pendingImageImport.source.name)
-              : pendingImageImport.source.name
+              : pendingImageImport.kind === 'cbr'
+                ? defaultCbrTitle(pendingImageImport.source.name)
+                : pendingImageImport.source.name
           }
           onCancel={() => setPendingImageImport(null)}
           onConfirm={importPendingImages}
@@ -697,8 +713,12 @@ async function runFileImport(): Promise<ImportFlowResult> {
     if (!detected.ok) {
       return { status: 'import-failure', error: detected.error };
     }
-    if (detected.value === 'cbz') {
-      return { status: 'cbz-selected', source: selected.value };
+    if (detected.value === 'cbz' || detected.value === 'cbr') {
+      return {
+        status: 'image-archive-selected',
+        format: detected.value,
+        source: selected.value,
+      };
     }
     if (detected.value !== 'epub' && detected.value !== 'pdf') {
       return {
@@ -833,6 +853,55 @@ async function runCbzImport(source: FileImportSource): Promise<ImportFlowResult>
   }
 }
 
+async function runCbrImport(source: FileImportSource): Promise<ImportFlowResult> {
+  try {
+    const cbrArchiveExtractor = await loadCbrArchiveExtractor();
+    if (cbrArchiveExtractor === undefined) {
+      return {
+        status: 'import-failure',
+        error: { kind: 'filesystem-failure', operation: 'extract' },
+      };
+    }
+
+    const initialized = await initializeLocalStorage();
+    if (!initialized.ok) {
+      return { status: 'storage-failure' };
+    }
+
+    try {
+      const imageDependencies = {
+        books: initialized.value.books,
+        content: initialized.value.content,
+        detector: importFormatDetector,
+        directories: importDirectoryReader,
+        files: importFileReader,
+        createId: randomUUID,
+        now: () => new Date(),
+        diagnostics: importDiagnostics,
+      };
+      const importer = createCbrImporter({
+        archives: cbrArchiveExtractor,
+        detector: importFormatDetector,
+        images: createImageDirectoryImportPipeline(imageDependencies),
+        createExtractionId: randomUUID,
+      });
+      const imported = await importer.importBook(source);
+      if (!imported.ok) {
+        return { status: 'import-failure', error: imported.error };
+      }
+
+      const library = await listLibrary(initialized.value);
+      return library.status === 'ready'
+        ? { status: 'success', books: library.books }
+        : { status: 'library-failure' };
+    } finally {
+      await closeQuietly(initialized.value);
+    }
+  } catch {
+    return { status: 'storage-failure' };
+  }
+}
+
 async function loadCbzArchiveExtractor(): Promise<
   CbzArchiveExtractor | undefined
 > {
@@ -841,6 +910,19 @@ async function loadCbzArchiveExtractor(): Promise<
       '@/infrastructure/importing/expo-cbz-archive-extractor'
     );
     return new ExpoCbzArchiveExtractor();
+  } catch {
+    return undefined;
+  }
+}
+
+async function loadCbrArchiveExtractor(): Promise<
+  CbrArchiveExtractor | undefined
+> {
+  try {
+    const { loadExpoCbrArchiveExtractor } = await import(
+      '@/infrastructure/importing/expo-cbr-archive-extractor'
+    );
+    return loadExpoCbrArchiveExtractor();
   } catch {
     return undefined;
   }
@@ -927,7 +1009,7 @@ function uriScheme(uri: string): string {
 function showImportFailure(
   result: Exclude<
     ImportFlowResult,
-    { status: 'success' } | { status: 'cbz-selected' }
+    { status: 'success' } | { status: 'image-archive-selected' }
   >,
 ) {
   switch (result.status) {

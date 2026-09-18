@@ -1,6 +1,12 @@
 import type { Book, BookFormat, Result } from '../../domain';
 
-export type ImportFormat = 'epub' | 'pdf' | 'image-directory' | 'cbz';
+export type ImportFormat = 'epub' | 'pdf' | 'image-directory' | 'cbz' | 'cbr';
+
+export type ArchiveRejectionReason =
+  | 'encrypted'
+  | 'multi-volume'
+  | 'limits-exceeded'
+  | 'unsafe-contents';
 
 export interface FileImportSource {
   readonly kind: 'file';
@@ -32,6 +38,11 @@ export type ReaderFormatForImport<F extends ImportFormat> = F extends 'epub'
 export type ImportError =
   | { readonly kind: 'unsupported-format'; readonly detectedFormat?: string }
   | { readonly kind: 'corrupted-source'; readonly format?: ImportFormat }
+  | {
+      readonly kind: 'archive-rejected';
+      readonly format: 'cbr';
+      readonly reason: ArchiveRejectionReason;
+    }
   | { readonly kind: 'permission-or-access-failure'; readonly source: ImportSource }
   | {
       readonly kind: 'filesystem-failure';
@@ -57,6 +68,7 @@ export function readerFormatForImportFormat(format: ImportFormat): BookFormat {
       return 'pdf';
     case 'image-directory':
     case 'cbz':
+    case 'cbr':
       return 'images';
   }
 }

@@ -11,7 +11,7 @@ export function getImportErrorAlert(error: ImportError): ImportErrorAlert {
       return {
         title: 'Format non pris en charge',
         message:
-          'Ce format n’est pas pris en charge. Sélectionnez un fichier EPUB, PDF, CBZ ou un dossier JPEG/PNG.',
+          'Ce format n’est pas pris en charge. Sélectionnez un fichier EPUB, PDF, CBZ, CBR ou un dossier JPEG/PNG.',
       };
     case 'corrupted-source':
       if (error.format === 'image-directory') {
@@ -25,6 +25,29 @@ export function getImportErrorAlert(error: ImportError): ImportErrorAlert {
         title: 'Fichier endommagé',
         message: `Ce fichier ${formatLabel(error.format)} est endommagé ou incomplet et ne peut pas être importé.`,
       };
+    case 'archive-rejected':
+      switch (error.reason) {
+        case 'encrypted':
+          return {
+            title: 'Archive CBR chiffrée',
+            message: 'Les archives CBR protégées par mot de passe ne peuvent pas être importées.',
+          };
+        case 'multi-volume':
+          return {
+            title: 'Archive CBR en plusieurs volumes',
+            message: 'Regroupez la BD dans une archive CBR unique avant de l’importer.',
+          };
+        case 'limits-exceeded':
+          return {
+            title: 'Archive CBR trop volumineuse',
+            message: 'Cette archive dépasse les limites de taille ou de mémoire autorisées.',
+          };
+        case 'unsafe-contents':
+          return {
+            title: 'Archive CBR non sûre',
+            message: 'Cette archive contient des chemins ou des liens qui ne peuvent pas être extraits en sécurité.',
+          };
+      }
     case 'permission-or-access-failure':
       if (error.source.kind === 'directory') {
         return {
@@ -80,6 +103,8 @@ function formatLabel(format: ImportFormat | undefined): string {
       return 'd’images';
     case 'cbz':
       return 'CBZ';
+    case 'cbr':
+      return 'CBR';
     case undefined:
       return 'sélectionné';
   }

@@ -32,6 +32,11 @@ const errors: readonly ImportError[] = [
   { kind: 'permission-or-access-failure', source: directorySource },
   { kind: 'corrupted-source', format: 'cbz' },
   { kind: 'filesystem-failure', operation: 'extract' },
+  { kind: 'corrupted-source', format: 'cbr' },
+  { kind: 'archive-rejected', format: 'cbr', reason: 'encrypted' },
+  { kind: 'archive-rejected', format: 'cbr', reason: 'multi-volume' },
+  { kind: 'archive-rejected', format: 'cbr', reason: 'limits-exceeded' },
+  { kind: 'archive-rejected', format: 'cbr', reason: 'unsafe-contents' },
 ];
 
 test('every typed import error has an explicit user-facing alert', () => {
@@ -83,4 +88,14 @@ test('CBZ corruption and extraction failures identify the archive', () => {
   assert.match(extraction.title, /extraction impossible/i);
   assert.match(extraction.message, /archive/i);
   assert.match(getImportErrorAlert(errors[0]).message, /CBZ/);
+  assert.match(getImportErrorAlert(errors[0]).message, /CBR/);
+});
+
+test('CBR rejection reasons produce distinct actionable messages', () => {
+  const cbrAlerts = errors.slice(-4).map(getImportErrorAlert);
+
+  assert.match(cbrAlerts[0]?.title ?? '', /chiffrée/i);
+  assert.match(cbrAlerts[1]?.title ?? '', /plusieurs volumes/i);
+  assert.match(cbrAlerts[2]?.message ?? '', /limites/i);
+  assert.match(cbrAlerts[3]?.title ?? '', /non sûre/i);
 });

@@ -2,19 +2,17 @@
 
 - Statut : accepte
 - Date : 2026-09-17
-- Issue : #25
+- Issues : #25, #34
 - Backlog : spike CBR/RAR du Sprint 5
 - Implementation produit : #34 / IMP-08
 
 ## Decision
 
-Le support CBR recoit un **GO architectural** pour une implementation ulterieure
-dans #34, avec un module Expo natif Reebbon construit autour de la source
-officielle UnRAR.
+Le support CBR recoit un **GO architectural**, avec un module Expo natif Reebbon
+construit autour de la source officielle UnRAR. L'Issue #34 transforme cette
+decision en implementation produit IMP-08.
 
-Ce GO ne rend pas CBR disponible dans le produit. Le POC de #25 n'ajoute pas
-`cbr` a `ImportFormat`, ne modifie pas la detection de format et n'enregistre
-aucun importer CBR. Il demontre une architecture raisonnable et maitrisee :
+Le spike #25 a demontre une architecture raisonnable et maitrisee :
 
 ```text
 ImportSource CBR
@@ -26,9 +24,30 @@ ImportSource CBR
 -> livre Images
 ```
 
-L'Issue #34 reste ouverte. Elle devra transformer le POC en implementation
-produit, ajouter le corpus d'archives et effectuer la QA mobile decrite dans cet
-ADR avant livraison.
+## Implementation produit #34
+
+L'implementation productisee conserve la decision du spike :
+
+- module local `modules/reebbon-cbr/`, sans wrapper React Native tiers ;
+- acquisition `content://`/fichier par flux natif de 64 Kio vers le cache prive ;
+- aucune archive et aucune image decompressee dans le heap JavaScript ;
+- detection RAR4/RAR5 et import `cbr` vers un ouvrage de format `images` ;
+- adaptateur application `CbrArchiveExtractor` et erreurs typees ;
+- delegation exclusive a `ImageDirectoryImportPipeline` pour IMP-03 ;
+- nettoyage du repertoire temporaire sur succes et sur tous les chemins d'erreur ;
+- limite d'archive source ajoutee a 2 Gio, en plus des limites du spike.
+
+Le corpus upstream epingle execute sur emulateur Android valide RAR4, RAR5,
+RAR5 solide, corruption, chiffrement, multi-volume et lien symbolique. Une
+archive solide produisant 276 916 480 octets a atteint 69 368 Kio de RSS au pic
+avec un dictionnaire limite a 64 Mio. La memoire native reste ainsi bornee par
+la politique de dictionnaire et ne suit pas la taille de sortie complete.
+
+La compilation NDK et l'execution native Android sont validees. La compilation
+application Gradle reste bloquee avant la configuration du module par l'erreur
+globale du plugin React Native deja presente sur `main`. La QA application sur
+appareil Android et la compilation/QA iOS restent donc des validations de
+release explicites, detaillees dans `docs/qa/issue-34-cbr-import.md`.
 
 ## Pourquoi la decision change
 
@@ -37,7 +56,8 @@ Aucun wrapper examine ne satisfaisait les contraintes de licence, version,
 memoire, taille et parite Android/iOS. Cela ne constituait pas un obstacle a CBR
 lui-meme.
 
-Le POC versionne sous `modules/reebbon-cbr-poc/` verifie l'alternative demandee :
+Le POC initialement versionne sous `modules/reebbon-cbr-poc/`, puis productise
+sous `modules/reebbon-cbr/`, verifie l'alternative demandee :
 
 - source officielle UnRAR 7.23 vendoree, sans wrapper React Native tiers ;
 - meme liste explicite de sources C++ pour Android et iOS ;
@@ -69,8 +89,8 @@ Le moteur retenu est la source C++ officielle RARLAB UnRAR 7.23 :
 - archives solides : traitees sequentiellement par le meme handle UnRAR.
 
 Le code amont complet et sa licence sont conserves dans
-`modules/reebbon-cbr-poc/native/unrar/`. La logique Reebbon reste separee dans
-`reebbon_cbr_poc.cpp`.
+`modules/reebbon-cbr/native/unrar/`. La logique Reebbon reste separee dans
+`reebbon_cbr.cpp`.
 
 ### Licence et distribution commerciale
 
@@ -84,7 +104,7 @@ reproduit dans la licence ou la documentation, et dans les commentaires du
 package derive. Le POC satisfait cette obligation dans :
 
 - `native/unrar/license.txt`, copie amont complete ;
-- `modules/reebbon-cbr-poc/NOTICE.md` ;
+- `modules/reebbon-cbr/NOTICE.md` ;
 - le commentaire de l'en-tete public du wrapper Reebbon.
 
 Reebbon utilise uniquement la decompression. Aucune clause de la licence
@@ -157,9 +177,9 @@ Avant extraction, le POC :
 
 Le repertoire de destination doit ne pas exister. Le coeur le cree et le supprime
 recursivement sur toute erreur. Sur succes, il reste disponible pour
-`ImageDirectoryImportPipeline`; `cleanup` refuse tout chemin hors de la racine
-temporaire native. Le futur appelant #34 devra toujours l'appeler dans un
-`finally` apres delegation au pipeline Images.
+`ImageDirectoryImportPipeline`; `cleanup` refuse tout identifiant hors de la
+racine temporaire native. L'importeur #34 declenche ce nettoyage apres le
+staging Images et compense aussi tous les chemins d'erreur.
 
 ### Archives solides
 
@@ -188,21 +208,21 @@ potentiellement un lien, est abandonne.
 Commande reproductible :
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/verify-cbr-poc-android.ps1
+powershell -ExecutionPolicy Bypass -File scripts/verify-cbr-native-android.ps1
 ```
 
 Environnement : Expo SDK 57.0.18, React Native 0.86.3, NDK 27.1.12297006,
 CMake 3.22.1, Ninja, API Android 24, Clang 18.0.2 et C++17. Le build de mesure
 utilise `-Oz`, des sections eliminables et un strip des symboles.
 
-Resultats du 17 septembre 2026 :
+Resultats productises du 18 septembre 2026 :
 
 | ABI | `.so` non strippe | `.so` strippe |
 | --- | ---: | ---: |
-| armeabi-v7a | 3 607 372 octets | 642 568 octets |
-| arm64-v8a | 4 362 272 octets | 1 016 056 octets |
-| x86 | 3 832 828 octets | 1 026 852 octets |
-| x86_64 | 4 166 264 octets | 997 664 octets |
+| armeabi-v7a | 3 605 564 octets | 642 112 octets |
+| arm64-v8a | 4 359 584 octets | 1 015 376 octets |
+| x86 | 3 830 800 octets | 1 026 328 octets |
+| x86_64 | 4 163 872 octets | 996 992 octets |
 
 Ces chiffres incluent le moteur, le wrapper C++ et JNI, mais ne sont pas un
 delta AAB compresse. Un AAB distribue ne livre normalement que l'ABI du device.
@@ -226,9 +246,10 @@ resolus. La meme panne du projet SDK 57 / Gradle 9.3.1 est deja documentee sur
 CMake/NDK direct prouve les quatre ABI sans modifier le dossier Android genere
 ni `node_modules`.
 
-#34 devra reexecuter un development build et un build EAS une fois ce probleme
-global de toolchain resolu. Le POC est structure comme un module Expo local
-standard et ne requiert pas de config plugin ou de modification native manuelle.
+Un development build et un build EAS devront etre reexecutes une fois ce
+probleme global de toolchain resolu. Le module est structure comme un module
+Expo local standard et ne requiert pas de config plugin ou de modification
+native manuelle.
 
 ## Architecture iOS
 
@@ -256,25 +277,27 @@ de resultat suivants sont implementes nativement :
 - sortie excessive : interruption native et nettoyage du repertoire temporaire.
 
 La compilation couvre ces chemins et les tests de depot verifient les invariants
-du wrapper. Leur execution avec de vraies fixtures RAR4, RAR5, solides,
-corrompues et chiffrees sur Android/iOS est explicitement reportee a #34, car
-aucun appareil Android ni environnement iOS n'est disponible ici. Le GO porte
-sur la faisabilite et l'architecture, pas sur une pretendue QA produit achevee.
+du wrapper. De vraies fixtures RAR4, RAR5, solides, corrompues et chiffrees ont
+ete executees sur emulateur Android dans #34, ainsi que des rejets multi-volume
+et lien symbolique. La meme QA sur appareil Android et iOS reste explicitement
+documentee sans etre pretendue comme executee.
 
 ## Reutilisation du pipeline Images
 
-Le POC s'arrete volontairement au repertoire temporaire. #34 devra fournir un
-adaptateur application `CbrArchiveExtractor` analogue au chemin CBZ, puis appeler
-exclusivement `ImageDirectoryImportPipeline.importDirectory`.
+Le module natif s'arrete volontairement au repertoire temporaire. L'adaptateur
+application `CbrArchiveExtractor` de #34 appelle exclusivement
+`ImageDirectoryImportPipeline.importDirectory`.
 
 Il est interdit dans #34 de recopier la selection JPEG/PNG, le tri naturel, la
 validation d'images, le choix de la premiere page comme couverture, le staging,
 la persistence ou les compensations. Ces responsabilites restent celles de
 IMP-03.
 
-## Travail obligatoire dans #34
+## Criteres de livraison de #34
 
-Avant de considerer CBR livrable, #34 doit :
+L'implementation couvre les points 1 a 3. Les points 4 a 10 de la decision
+initiale restent la checklist de QA/release, avec les resultats automatisables
+consignes dans `docs/qa/issue-34-cbr-import.md` :
 
 1. connecter la copie/permission `ImportSource` au chemin natif sans lire le CBR
    en JavaScript ;
@@ -312,18 +335,20 @@ Les conclusions du premier passage restent valides pour les alternatives :
 Le GO concerne exclusivement l'integration directe de la source officielle
 UnRAR avec les garde-fous Reebbon.
 
-## Verification du spike
+## Verification de l'implementation
 
 - autolinking Expo Android : module et classe Kotlin resolus ;
 - autolinking Expo Apple : module local detecte ;
 - prebuild Android : termine ;
 - CMake/NDK Android : quatre ABI compilees ;
-- executable de tests natifs arm64 : compile ;
-- tests TypeScript/architecture : 226 passes ;
-- appareil Android : non disponible ;
-- Gradle application complet : bloque avant le POC par le plugin RN de `main` ;
+- executables de tests natifs arm64 et x86_64 : compiles ;
+- corpus RAR4/RAR5 reel : passe sur emulateur Android API 31 ;
+- mesure native 264,1 Mio extraits : pic RSS 69 368 Kio ;
+- tests TypeScript/architecture : voir la PR #34 pour le total final ;
+- appareil Android physique : non disponible ;
+- Gradle application complet : bloque avant le module par le plugin RN de `main` ;
 - iOS/Xcode/CocoaPods : non disponible sous Windows ;
-- EAS Android/iOS et delta AAB/IPA : a executer dans #34.
+- EAS Android/iOS et delta AAB/IPA : non valides dans cet environnement.
 
 ## Sources officielles et upstream
 
