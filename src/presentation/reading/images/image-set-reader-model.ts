@@ -6,22 +6,32 @@ import {
   defaultReadingDirection,
   type ReadingDirection,
 } from '@/domain';
+import { designSystemTokens } from '@/shared/theme';
 
-const ADJACENT_PAGE_RADIUS = 1;
+const ADJACENT_SPREAD_RADIUS = 1;
+
+export type ImagePagesPerSpread = 1 | 2;
+
+export interface ImagePageSpread {
+  readonly canonicalStartIndex: number;
+  readonly pages: readonly ImageSetPage[];
+}
 
 export const imagePagePreloadConfiguration = {
-  adjacentPageRadius: ADJACENT_PAGE_RADIUS,
-  maximumResidentPages: ADJACENT_PAGE_RADIUS * 2 + 1,
+  adjacentSpreadRadius: ADJACENT_SPREAD_RADIUS,
+  maximumResidentSpreads: ADJACENT_SPREAD_RADIUS * 2 + 1,
+  maximumPagesPerSpread: 2,
+  maximumResidentPages: (ADJACENT_SPREAD_RADIUS * 2 + 1) * 2,
   cachePolicy: 'none',
   priority: 'high',
 } as const;
 
 export const imagePagerVirtualization = {
-  initialNumToRender: imagePagePreloadConfiguration.maximumResidentPages,
-  maxToRenderPerBatch: imagePagePreloadConfiguration.maximumResidentPages,
+  initialNumToRender: imagePagePreloadConfiguration.maximumResidentSpreads,
+  maxToRenderPerBatch: imagePagePreloadConfiguration.maximumResidentSpreads,
   scrollEventThrottle: 16,
   updateCellsBatchingPeriod: 16,
-  windowSize: imagePagePreloadConfiguration.maximumResidentPages,
+  windowSize: imagePagePreloadConfiguration.maximumResidentSpreads,
 } as const;
 
 export const imageZoomConfiguration = {
@@ -46,15 +56,23 @@ export function getImageFolio(
 export function getResidentImageIndexes(
   currentIndex: number,
   totalPages: number,
+  pagesPerSpread: ImagePagesPerSpread = 1,
 ): readonly number[] {
   if (!isValidIndex(currentIndex, totalPages)) {
     return [];
   }
-  const first = Math.max(0, currentIndex - ADJACENT_PAGE_RADIUS);
-  const last = Math.min(
-    totalPages - 1,
-    currentIndex + ADJACENT_PAGE_RADIUS,
+  const currentSpread = Math.floor(currentIndex / pagesPerSpread);
+  const totalSpreads = getImageSpreadCount(totalPages, pagesPerSpread);
+  const firstSpread = Math.max(
+    0,
+    currentSpread - ADJACENT_SPREAD_RADIUS,
   );
+  const lastSpread = Math.min(
+    totalSpreads - 1,
+    currentSpread + ADJACENT_SPREAD_RADIUS,
+  );
+  const first = firstSpread * pagesPerSpread;
+  const last = Math.min(totalPages - 1, (lastSpread + 1) * pagesPerSpread - 1);
   return Array.from({ length: last - first + 1 }, (_, offset) => first + offset);
 }
 
@@ -62,11 +80,68 @@ export function isImagePageResident(
   page: ImageSetPage,
   currentIndex: number,
   totalPages: number,
+  pagesPerSpread: ImagePagesPerSpread = 1,
 ): boolean {
   return (
     isValidIndex(page.index, totalPages) &&
-    Math.abs(page.index - currentIndex) <= ADJACENT_PAGE_RADIUS
+    isValidIndex(currentIndex, totalPages) &&
+    Math.abs(
+      Math.floor(page.index / pagesPerSpread) -
+        Math.floor(currentIndex / pagesPerSpread),
+    ) <= ADJACENT_SPREAD_RADIUS
   );
+}
+
+export function getImagePagesPerSpread(
+  viewportWidth: number,
+  viewportHeight: number,
+  supportsDoublePage: boolean,
+): ImagePagesPerSpread {
+  const shortestSide = Math.min(viewportWidth, viewportHeight);
+  return supportsDoublePage &&
+    Number.isFinite(shortestSide) &&
+    shortestSide >= designSystemTokens.layout.imageReader.tabletBreakpoint
+    ? designSystemTokens.layout.imageReader.tabletPagesPerSpread
+    : designSystemTokens.layout.imageReader.compactPagesPerSpread;
+}
+
+export function getImagePageSpreads(
+  pages: readonly ImageSetPage[],
+  pagesPerSpread: ImagePagesPerSpread,
+  readingDirection: ReadingDirection,
+): readonly ImagePageSpread[] {
+  const spreads: ImagePageSpread[] = [];
+  for (let start = 0; start < pages.length; start += pagesPerSpread) {
+    const canonicalPages = pages.slice(start, start + pagesPerSpread);
+    spreads.push({
+      canonicalStartIndex: start,
+      pages:
+        readingDirection === 'right-to-left'
+          ? [...canonicalPages].reverse()
+          : canonicalPages,
+    });
+  }
+  return readingDirection === 'right-to-left' ? spreads.reverse() : spreads;
+}
+
+export function getAdjacentImageLocationIndex(
+  currentIndex: number,
+  totalPages: number,
+  pagesPerSpread: ImagePagesPerSpread,
+  offset: -1 | 1,
+): number | undefined {
+  if (!isValidIndex(currentIndex, totalPages)) {
+    return undefined;
+  }
+  const targetSpread = Math.floor(currentIndex / pagesPerSpread) + offset;
+  return targetSpread >= 0 &&
+    targetSpread < getImageSpreadCount(totalPages, pagesPerSpread)
+    ? getImageSpreadLocationIndex(
+        targetSpread,
+        totalPages,
+        pagesPerSpread,
+      )
+    : undefined;
 }
 
 export function getImageIndexFromOffset(
@@ -74,6 +149,7 @@ export function getImageIndexFromOffset(
   viewportWidth: number,
   totalPages: number,
   readingDirection: ReadingDirection = defaultReadingDirection,
+  pagesPerSpread: ImagePagesPerSpread = 1,
 ): number | undefined {
   if (
     !Number.isFinite(offset) ||
@@ -85,8 +161,14 @@ export function getImageIndexFromOffset(
     return undefined;
   }
   const pagerIndex = Math.round(offset / viewportWidth);
-  return isValidIndex(pagerIndex, totalPages)
-    ? getImagePageIndex(pagerIndex, totalPages, readingDirection)
+  const totalSpreads = getImageSpreadCount(totalPages, pagesPerSpread);
+  return pagerIndex >= 0 && pagerIndex < totalSpreads
+    ? getImagePageIndex(
+        pagerIndex,
+        totalPages,
+        readingDirection,
+        pagesPerSpread,
+      )
     : undefined;
 }
 
@@ -94,25 +176,30 @@ export function getImagePagerIndex(
   pageIndex: number,
   totalPages: number,
   readingDirection: ReadingDirection,
+  pagesPerSpread: ImagePagesPerSpread = 1,
 ): number {
+  const spreadIndex = Math.floor(pageIndex / pagesPerSpread);
   return readingDirection === 'right-to-left'
-    ? totalPages - 1 - pageIndex
-    : pageIndex;
+    ? getImageSpreadCount(totalPages, pagesPerSpread) - 1 - spreadIndex
+    : spreadIndex;
 }
 
 export function getImagePageIndex(
   pagerIndex: number,
   totalPages: number,
   readingDirection: ReadingDirection,
+  pagesPerSpread: ImagePagesPerSpread = 1,
 ): number {
-  return getImagePagerIndex(pagerIndex, totalPages, readingDirection);
-}
-
-export function getImagePagesInReadingOrder(
-  pages: readonly ImageSetPage[],
-  readingDirection: ReadingDirection,
-): readonly ImageSetPage[] {
-  return readingDirection === 'right-to-left' ? [...pages].reverse() : pages;
+  const totalSpreads = getImageSpreadCount(totalPages, pagesPerSpread);
+  const spreadIndex =
+    readingDirection === 'right-to-left'
+      ? totalSpreads - 1 - pagerIndex
+      : pagerIndex;
+  return getImageSpreadLocationIndex(
+    spreadIndex,
+    totalPages,
+    pagesPerSpread,
+  );
 }
 
 export function getImagePanBounds(
@@ -166,4 +253,19 @@ function isValidIndex(index: number, totalPages: number): boolean {
     totalPages >= 1 &&
     index < totalPages
   );
+}
+
+function getImageSpreadCount(
+  totalPages: number,
+  pagesPerSpread: ImagePagesPerSpread,
+): number {
+  return Math.ceil(totalPages / pagesPerSpread);
+}
+
+function getImageSpreadLocationIndex(
+  spreadIndex: number,
+  totalPages: number,
+  pagesPerSpread: ImagePagesPerSpread,
+): number {
+  return Math.min((spreadIndex + 1) * pagesPerSpread - 1, totalPages - 1);
 }

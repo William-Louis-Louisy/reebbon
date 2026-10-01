@@ -94,7 +94,7 @@ test('image reader implements the common lifecycle with zero-based progress', as
   assert.equal(reader.capabilities.zoom, true);
   assert.equal(reader.capabilities.readingThemeCustomization, false);
   assert.equal(reader.capabilities.configurableReadingDirection, true);
-  assert.equal(reader.capabilities.doublePage, false);
+  assert.equal(reader.capabilities.doublePage, true);
 });
 
 test('image reader validates local content, page count and index bounds', async () => {

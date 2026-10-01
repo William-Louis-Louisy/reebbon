@@ -203,6 +203,11 @@ export const designSystemTokens = {
       gap: 12,
       pageAspectRatio: 3 / 4.2,
     },
+    imageReader: {
+      tabletBreakpoint: 600,
+      compactPagesPerSpread: 1,
+      tabletPagesPerSpread: 2,
+    },
   },
   components: {
     libraryImportAction: {

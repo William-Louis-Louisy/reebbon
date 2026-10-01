@@ -24,8 +24,9 @@ test('image reader preloads only its bounded resident window', () => {
   assert.match(screenSource, /extraData={residentCenterIndex}/);
   assert.match(
     screenSource,
-    /isImagePageResident\(\s*item,\s*residentCenterIndex,\s*totalPages/,
+    /isImagePageResident\(\s*page,\s*residentCenterIndex,\s*totalPages,\s*pagesPerSpread/,
   );
+  assert.match(screenSource, /width: viewport\.width \/ pagesPerSpread/);
   assert.match(
     pageSource,
     /cachePolicy={imagePagePreloadConfiguration\.cachePolicy}/,

@@ -11,12 +11,12 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
 import {
   createImageSetReader,
-  type ImageSetPage,
   type ImageSetPageProvider,
   type Reader,
   type ReaderProgress,
@@ -39,11 +39,14 @@ import { ReaderSettingsSheet } from '../reader-settings-sheet';
 import { ImageReadingDirectionControl } from './image-reading-direction-control';
 import { ImageSetRenditionBridge } from './image-set-rendition-bridge';
 import {
+  getAdjacentImageLocationIndex,
   getImageFolio,
   getImageIndexFromOffset,
+  getImagePageSpreads,
+  getImagePagesPerSpread,
   getImagePagerIndex,
-  getImagePagesInReadingOrder,
   imagePagerVirtualization,
+  type ImagePageSpread,
   isImagePageResident,
 } from './image-set-reader-model';
 import { ZoomableImagePage } from './zoomable-image-page';
@@ -83,7 +86,8 @@ export default function ImageSetReaderScreen({
   const [reader] = useState<Reader<'images'>>(() =>
     createImageSetReader(bridge, initialReadingDirection),
   );
-  const listRef = useRef<FlatList<ImageSetPage>>(null);
+  const listRef = useRef<FlatList<ImagePageSpread>>(null);
+  const window = useWindowDimensions();
   const snapshot = useSyncExternalStore(
     bridge.subscribe,
     bridge.getSnapshot,
@@ -107,6 +111,11 @@ export default function ImageSetReaderScreen({
       : currentIndex;
   const readingDirection =
     snapshot.readingDirection ?? initialReadingDirection;
+  const pagesPerSpread = getImagePagesPerSpread(
+    window.width,
+    window.height,
+    reader.capabilities.doublePage,
+  );
   const folio = getImageFolio(snapshot.location);
 
   useEffect(
@@ -122,11 +131,18 @@ export default function ImageSetReaderScreen({
               index,
               snapshot.location?.totalPages ?? 0,
               readingDirection,
+              pagesPerSpread,
             ),
           });
         },
       }),
-    [bridge, readingDirection, snapshot.location?.totalPages, viewport.width],
+    [
+      bridge,
+      pagesPerSpread,
+      readingDirection,
+      snapshot.location?.totalPages,
+      viewport.width,
+    ],
   );
 
   useEffect(() => {
@@ -160,10 +176,18 @@ export default function ImageSetReaderScreen({
   }, [currentIndex, snapshot.status]);
 
   const navigate = (offset: -1 | 1) => {
-    if (currentIndex === undefined) {
+    if (currentIndex === undefined || totalPages === undefined) {
       return;
     }
-    void reader.goTo({ kind: 'images', index: currentIndex + offset });
+    const targetIndex = getAdjacentImageLocationIndex(
+      currentIndex,
+      totalPages,
+      pagesPerSpread,
+      offset,
+    );
+    if (targetIndex !== undefined) {
+      void reader.goTo({ kind: 'images', index: targetIndex });
+    }
   };
 
   const selectReadingDirection = (direction: ReadingDirection) => {
@@ -224,6 +248,7 @@ export default function ImageSetReaderScreen({
           viewport.width,
           totalPages,
           readingDirection,
+          pagesPerSpread,
         );
 
   const updatePreloadCenter = (index: number) => {
@@ -242,6 +267,32 @@ export default function ImageSetReaderScreen({
     currentIndex !== undefined &&
     residentCenterIndex !== undefined &&
     totalPages !== undefined;
+  const previousIndex =
+    isReady
+      ? getAdjacentImageLocationIndex(
+          currentIndex,
+          totalPages,
+          pagesPerSpread,
+          -1,
+        )
+      : undefined;
+  const nextIndex =
+    isReady
+      ? getAdjacentImageLocationIndex(
+          currentIndex,
+          totalPages,
+          pagesPerSpread,
+          1,
+        )
+      : undefined;
+  const spreads =
+    isReady
+      ? getImagePageSpreads(
+          snapshot.pages,
+          pagesPerSpread,
+          readingDirection,
+        )
+      : [];
 
   return (
     <>
@@ -259,8 +310,8 @@ export default function ImageSetReaderScreen({
             />
           )
         }
-        isNextDisabled={!isReady || currentIndex >= totalPages - 1}
-        isPreviousDisabled={!isReady || currentIndex <= 0}
+        isNextDisabled={nextIndex === undefined}
+        isPreviousDisabled={previousIndex === undefined}
         navigationDirection={readingDirection}
         onClose={close}
         onNext={() => navigate(1)}
@@ -269,12 +320,9 @@ export default function ImageSetReaderScreen({
         <View onLayout={updateViewport} style={styles.readerSurface}>
         {isReady && viewport.width > 0 && viewport.height > 0 ? (
           <FlatList
-            key={`${snapshot.sessionId}:${readingDirection}`}
+            key={`${snapshot.sessionId}:${readingDirection}:${pagesPerSpread}:${viewport.width}`}
             ref={listRef}
-            data={getImagePagesInReadingOrder(
-              snapshot.pages,
-              readingDirection,
-            )}
+            data={spreads}
             decelerationRate="fast"
             disableIntervalMomentum
             extraData={residentCenterIndex}
@@ -289,8 +337,9 @@ export default function ImageSetReaderScreen({
               currentIndex,
               totalPages,
               readingDirection,
+              pagesPerSpread,
             )}
-            keyExtractor={(page) => page.uri}
+            keyExtractor={(spread) => String(spread.canonicalStartIndex)}
             maxToRenderPerBatch={
               imagePagerVirtualization.maxToRenderPerBatch
             }
@@ -304,31 +353,53 @@ export default function ImageSetReaderScreen({
             }}
             pagingEnabled
             removeClippedSubviews={false}
-            renderItem={({ item }) => (
+            renderItem={({ item: spread }) => (
               <View
                 style={[
-                  styles.page,
+                  styles.spread,
                   { width: viewport.width, height: viewport.height },
+                  readingDirection === 'right-to-left'
+                    ? styles.rightAlignedSpread
+                    : styles.leftAlignedSpread,
                 ]}>
-                {isImagePageResident(
-                  item,
-                  residentCenterIndex,
-                  totalPages,
-                ) ? (
-                  <ZoomableImagePage
-                    onRenderFailure={() =>
-                      bridge.reportFailure({ kind: 'rendering-failure' })
-                    }
-                    onZoomStateChange={(zoomed) => {
-                      setZoomedPageIndex(zoomed ? item.index : undefined);
-                    }}
-                    page={item}
-                    totalPages={totalPages}
-                  />
-                ) : null}
+                {spread.pages.map((page) => (
+                  <View
+                    key={page.uri}
+                    style={[
+                      styles.page,
+                      {
+                        width: viewport.width / pagesPerSpread,
+                        height: viewport.height,
+                      },
+                    ]}>
+                    {isImagePageResident(
+                      page,
+                      residentCenterIndex,
+                      totalPages,
+                      pagesPerSpread,
+                    ) ? (
+                      <ZoomableImagePage
+                        onRenderFailure={() =>
+                          bridge.reportFailure({ kind: 'rendering-failure' })
+                        }
+                        onZoomStateChange={(zoomed) => {
+                          setZoomedPageIndex((activeIndex) =>
+                            zoomed
+                              ? page.index
+                              : activeIndex === page.index
+                                ? undefined
+                                : activeIndex,
+                          );
+                        }}
+                        page={page}
+                        totalPages={totalPages}
+                      />
+                    ) : null}
+                  </View>
+                ))}
               </View>
             )}
-            scrollEnabled={zoomedPageIndex !== currentIndex}
+            scrollEnabled={zoomedPageIndex === undefined}
             scrollEventThrottle={
               imagePagerVirtualization.scrollEventThrottle
             }
@@ -381,6 +452,17 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: 'hidden',
     backgroundColor: readingThemes.paper.background,
+  },
+  spread: {
+    flexDirection: 'row',
+    overflow: 'hidden',
+    backgroundColor: readingThemes.paper.background,
+  },
+  leftAlignedSpread: {
+    justifyContent: 'flex-start',
+  },
+  rightAlignedSpread: {
+    justifyContent: 'flex-end',
   },
   page: {
     overflow: 'hidden',
