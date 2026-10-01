@@ -45,7 +45,7 @@ export const imageSetReaderCapabilities = {
   layoutCustomization: false,
   zoom: true,
   configurableReadingDirection: true,
-  doublePage: false,
+  doublePage: true,
 } as const;
 
 type ReaderState = 'closed' | 'opening' | 'open' | 'failed';
